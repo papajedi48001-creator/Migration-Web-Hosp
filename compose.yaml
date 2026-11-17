@@ -56,7 +56,7 @@ services:
     cap_drop: [ALL]
     volumes:
       - uploads:/directus/uploads
-      - ./directus/extensions:/directus/extensions:ro
+      - ./directus/extensions:/directus/extensions:ro,z
     networks:
       - backend
       - egress
@@ -155,7 +155,7 @@ services:
       ASTRO_TELEMETRY_DISABLED: "1"
       HOME: /tmp
     volumes:
-      - ./site:/site
+      - ./site:/site:z   # z: ให้ container อ่าน/เขียนได้เมื่อ SELinux เปิด
       - site-node-modules:/site/node_modules
     networks:
       - backend

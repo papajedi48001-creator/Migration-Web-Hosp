@@ -69,6 +69,7 @@ migration/wp-to-directus.mjs     ย้ายข่าว/หน้า/รูป
 scripts/gen-secrets.sh           สุ่มรหัสลับใส่ .env
 scripts/backup.sh                สำรอง DB + ไฟล์ + .env
 scripts/restore.sh               กู้คืน (ใช้ย้ายเครื่องได้ด้วย)
+scripts/setup-server.sh          ติดตั้งเฟส 1 บน .251 คำสั่งเดียว (rollback ได้)
 scripts/build-site.sh            สร้างหน้าเว็บ static + preview ฉบับร่าง สลับขึ้นเว็บแบบไม่มีช่วงล่ม (cron ทุก 1 นาที)
 nginx/                           config ฝั่ง host: เว็บสาธารณะ, หลังบ้าน :8443, redirect, header ความปลอดภัย
 site/                            หน้าเว็บ Astro (ดึงข้อมูลจาก Directus ตอน build เท่านั้น)
@@ -93,6 +94,16 @@ site/                            หน้าเว็บ Astro (ดึงข้
 | PostgreSQL | ไม่เปิด | เฉพาะ container directus (network internal) |
 | หลังบ้านผ่าน nginx | `8443` | LAN เท่านั้น |
 | preview ฉบับร่าง | ไม่มี (ไฟล์ static) | `:8443/preview/` LAN เท่านั้น |
+
+**ติดตั้งบน .251 แบบคำสั่งเดียว (เฟส 1)**: ทำทุกขั้นด้านล่าง + nginx :8443 + firewalld + SELinux + cron + กุญแจ ssh สำหรับ NAS ให้เอง ไม่แตะ `waritch.conf`/WordPress รันซ้ำได้ และถอนได้ด้วย `rollback`
+
+```bash
+sudo git clone https://github.com/papajedi48001-creator/Migration-Web-Hosp /opt/hospweb
+cd /opt/hospweb && sudo ./scripts/setup-server.sh
+# ถอน: sudo ./scripts/setup-server.sh rollback   (ข้อมูลไม่ถูกลบ)
+```
+
+ขั้นตอนแบบทำเอง (สิ่งที่สคริปต์ทำ)
 
 ```bash
 sudo mkdir -p /opt/hospweb && sudo chown $USER /opt/hospweb

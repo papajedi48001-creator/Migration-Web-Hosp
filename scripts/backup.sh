@@ -74,8 +74,9 @@ prune "$BACKUP_DIR/daily" "$KEEP_DAILY"
 prune "$BACKUP_DIR/weekly" "$KEEP_WEEKLY"
 
 # ส่งไปเก็บอีกเครื่อง (เช่น NAS) ถ้าตั้งไว้ เช่น BACKUP_OFFSITE=backup@192.168.1.20:/volume1/hospweb
-if [[ -n ${BACKUP_OFFSITE:-} ]]; then
-	rsync -a --delete "$BACKUP_DIR/" "$BACKUP_OFFSITE/"
+# BACKUP_SKIP_OFFSITE=1 สำรองเฉพาะในเครื่อง (ใช้ตอนยังตั้งค่า NAS ไม่เสร็จ)
+if [[ -n ${BACKUP_OFFSITE:-} && -z ${BACKUP_SKIP_OFFSITE:-} ]]; then
+	rsync -a --delete "$BACKUP_DIR/" "$BACKUP_OFFSITE/" || { log "!! ส่งไป $BACKUP_OFFSITE ไม่สำเร็จ (ชุดสำรองในเครื่องยังอยู่ครบ)"; exit 2; }
 	log "ส่งสำเนาไป $BACKUP_OFFSITE แล้ว"
 fi
 log "เสร็จ"

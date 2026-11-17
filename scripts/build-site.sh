@@ -4,6 +4,7 @@
 #   ./scripts/build-site.sh              # สร้างใหม่เฉพาะเมื่อเนื้อหาเปลี่ยน (cron เรียกทุก 1 นาที)
 #   ./scripts/build-site.sh --force      # สร้างใหม่ทั้งสองชุดทันที
 #   ./scripts/build-site.sh --install    # ติดตั้ง/อัปเดต package ของ site/ (ครั้งแรก และหลัง git pull ที่แก้ package.json) ต้องใช้ sudo
+#                                        ถ้าออกเน็ตผ่าน proxy: ตั้ง HTTPS_PROXY หรือ INSTALL_DOCKER_ARGS="--network host ..." 
 #   ./scripts/build-site.sh --rollback   # ถอยหน้าเว็บสาธารณะกลับไป release ก่อนหน้า
 #
 # ผลลัพธ์ ($SITE_ROOT ค่าเริ่ม /srv/hospweb)
@@ -30,11 +31,13 @@ if [[ $MODE == --install ]]; then
 	mkdir -p "$ROOT"/{site,preview}/releases site/.cache site/.astro site/out
 	chown -R $BUILDER_UID:$BUILDER_UID site/.cache site/.astro site/out
 	[[ -d site/dist ]] && chown -R $BUILDER_UID:$BUILDER_UID site/dist
-	docker volume create hospweb_site-node-modules > /dev/null
+	docker volume inspect "${COMPOSE_PROJECT_NAME:-hospweb}_site-node-modules" > /dev/null 2>&1 ||
+		docker volume create --label com.docker.compose.project="${COMPOSE_PROJECT_NAME:-hospweb}" --label com.docker.compose.volume=site-node-modules "${COMPOSE_PROJECT_NAME:-hospweb}_site-node-modules" > /dev/null
 	# ติดตั้งผ่านอินเทอร์เน็ต (ตัว builder จริงอยู่ในเครือข่ายปิด จึงใช้ container แยกขั้นนี้)
-	docker run --rm -v "$PWD/site:/site" -v hospweb_site-node-modules:/site/node_modules -w /site \
+	docker run --rm -v "$PWD/site:/site:z" -v "${COMPOSE_PROJECT_NAME:-hospweb}_site-node-modules":/site/node_modules -w /site \
 		-e HOME=/tmp -e npm_config_update_notifier=false \
 		${HTTPS_PROXY:+-e HTTPS_PROXY} ${HTTP_PROXY:+-e HTTP_PROXY} ${NO_PROXY:+-e NO_PROXY} \
+		${INSTALL_DOCKER_ARGS:-} \
 		"$IMAGE" sh -c "npm ci --no-audit --no-fund && chown -R $BUILDER_UID:$BUILDER_UID node_modules"
 	log "ติดตั้ง package เรียบร้อย"
 	exit 0
