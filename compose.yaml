@@ -1,0 +1,144 @@
+# เว็บโรงพยาบาลใหม่: Directus (CMS) + PostgreSQL
+# หน้าเว็บสาธารณะ (Astro) เป็นไฟล์ static ที่ nginx บน host เสิร์ฟเอง ไม่อยู่ใน compose นี้
+#
+#   cp .env.example .env && ./scripts/gen-secrets.sh   # ครั้งแรก
+#   docker compose up -d
+#
+# พอร์ตที่เปิด: 127.0.0.1:${DIRECTUS_PORT:-8055} เท่านั้น (ให้ nginx บน host proxy เข้าไป)
+# ฐานข้อมูลไม่เปิดพอร์ตออก host เลย
+
+name: hospweb
+
+x-hardening: &hardening
+  restart: unless-stopped
+  security_opt:
+    - no-new-privileges:true
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+
+services:
+  db:
+    <<: *hardening
+    image: postgres:17.12-alpine
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-directus}
+      POSTGRES_USER: ${DB_USER:-directus}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?ตั้งค่า DB_PASSWORD ใน .env}
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --data-checksums"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks:
+      - backend
+    shm_size: 256mb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  directus:
+    <<: *hardening
+    image: directus/directus:12.6.1
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${DIRECTUS_PORT:-8055}:8055"
+    read_only: true
+    tmpfs:
+      - /tmp:uid=1000,gid=1000
+      - /directus/node_modules/.directus:uid=1000,gid=1000
+      - /home/node/.pm2:uid=1000,gid=1000
+    cap_drop: [ALL]
+    volumes:
+      - uploads:/directus/uploads
+      - ./directus/extensions:/directus/extensions:ro
+    networks:
+      - backend
+      - egress
+    environment:
+      # --- core ---
+      KEY: ${DIRECTUS_KEY:?รัน scripts/gen-secrets.sh}
+      SECRET: ${DIRECTUS_SECRET:?รัน scripts/gen-secrets.sh}
+      PUBLIC_URL: ${PUBLIC_URL:?ตั้งค่า PUBLIC_URL ใน .env}
+      ACCEPT_TERMS: "true"
+      TELEMETRY: "false"
+      LOG_LEVEL: info
+      LOG_STYLE: raw
+      LOG_HTTP_IGNORE_PATHS: /server/ping
+
+      # --- database ---
+      DB_CLIENT: pg
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_DATABASE: ${DB_DATABASE:-directus}
+      DB_USER: ${DB_USER:-directus}
+      DB_PASSWORD: ${DB_PASSWORD}
+
+      # --- admin คนแรก (ใช้ครั้งเดียวตอนติดตั้ง แล้วลบออกจาก .env) ---
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}       # = admin01 (รุ่นฟรีมีได้ 3 บัญชี อย่าสร้าง admin แยก)
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+
+      # --- auth / session ---
+      AUTH_LOGIN_ATTEMPTS: "5"          # ผิด 5 ครั้ง บัญชีถูกล็อก
+      LOGIN_STALL_TIME: "1000"
+      ACCESS_TOKEN_TTL: "15m"
+      REFRESH_TOKEN_TTL: "12h"
+      SESSION_COOKIE_TTL: "12h"
+      SESSION_COOKIE_SECURE: "true"
+      SESSION_COOKIE_SAME_SITE: "strict"
+      REFRESH_TOKEN_COOKIE_SECURE: "true"
+      REFRESH_TOKEN_COOKIE_SAME_SITE: "strict"
+      IP_TRUST_PROXY: "true"            # ต้องเปิด เพื่อให้ ip_access ของ policy เห็น IP จริงจาก nginx
+
+      # --- ปิดสิ่งที่ไม่ใช้ เพื่อลดพื้นที่โจมตี ---
+      CORS_ENABLED: "false"
+      WEBSOCKETS_ENABLED: "false"
+      MCP_ENABLED: "false"
+      OPENAPI_ENABLED: "false"
+      GRAPHQL_INTROSPECTION: "false"
+      MARKETPLACE_TRUST: "sandbox"      # ติดตั้งได้เฉพาะ extension แบบ sandbox และโฟลเดอร์ extensions เป็น read-only อยู่แล้ว
+
+      # --- rate limit ---
+      RATE_LIMITER_ENABLED: "true"
+      RATE_LIMITER_STORE: memory
+      RATE_LIMITER_POINTS: "50"
+      RATE_LIMITER_DURATION: "1"
+
+      # --- ไฟล์อัปโหลด: รับเฉพาะรูป PDF และเอกสาร office ---
+      FILES_MIME_TYPE_ALLOW_LIST: "image/jpeg,image/png,image/webp,image/gif,image/svg+xml,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/msword,application/vnd.ms-excel"
+      MAX_PAYLOAD_SIZE: "10mb"
+      FILE_METADATA_ALLOW_LIST: ""      # ไม่เก็บ EXIF (อาจมีพิกัด GPS)
+
+      # --- เก็บประวัติการแก้ไข 90 วัน (รุ่นฟรีแสดงย้อนหลังได้ 30 วัน) ---
+      RETENTION_ENABLED: "true"
+      ACTIVITY_RETENTION: "90d"
+      REVISIONS_RETENTION: "90d"
+
+      # --- อีเมล (รีเซ็ตรหัสผ่าน) ตั้งทีหลังได้ ---
+      EMAIL_TRANSPORT: ${EMAIL_TRANSPORT:-smtp}
+      EMAIL_FROM: ${EMAIL_FROM:-no-reply@localhost}
+      EMAIL_SMTP_HOST: ${EMAIL_SMTP_HOST:-}
+      EMAIL_SMTP_PORT: ${EMAIL_SMTP_PORT:-587}
+      EMAIL_SMTP_USER: ${EMAIL_SMTP_USER:-}
+      EMAIL_SMTP_PASSWORD: ${EMAIL_SMTP_PASSWORD:-}
+      EMAIL_SMTP_SECURE: ${EMAIL_SMTP_SECURE:-false}
+      EMAIL_VERIFY_SETUP: "false"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8055/server/ping || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+networks:
+  backend:
+    internal: true          # db คุยได้กับ directus เท่านั้น ออกอินเทอร์เน็ตไม่ได้
+  egress: {}                # ให้ directus ส่งอีเมลได้ และให้ docker map พอร์ตเข้า host ได้
+
+volumes:
+  db-data:
+  uploads:

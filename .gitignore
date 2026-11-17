@@ -1,0 +1,7 @@
+.env
+*.env.local
+/backups/
+node_modules/
+dist/
+.astro/
+migration/out/
