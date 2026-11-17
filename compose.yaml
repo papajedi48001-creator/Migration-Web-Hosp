@@ -79,7 +79,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
 
       # --- admin คนแรก (ใช้ครั้งเดียวตอนติดตั้ง แล้วลบออกจาก .env) ---
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}       # = admin01 (รุ่นฟรีมีได้ 3 บัญชี อย่าสร้าง admin แยก)
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
 
       # --- auth / session ---

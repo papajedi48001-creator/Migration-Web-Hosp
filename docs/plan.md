@@ -1,6 +1,6 @@
 # แผนพัฒนาเว็บไซต์โรงพยาบาลใหม่ (Directus + PostgreSQL + Astro)
 
-สถานะ: ร่าง v1 · 17 พ.ย. 2026
+สถานะ: ร่าง v2 · 17 พ.ย. 2026 (อัปเดตตามคำตอบ: ผู้ใช้ 3 คน, เข้า admin จากใน LAN, NAS .241, deploy บน .251 เดิม)
 ขอบเขต: เว็บหลัก `waritch-hosp.moph.go.th` (WordPress ที่ `/var/www/html`) เท่านั้น
 แอปอื่นบนเครื่องเดียวกัน (`/waritch/*`, `/iclaim/`, `/dispensingx/`, `/ita67/`, `/hs4/` ฯลฯ) **ไม่ย้าย และต้องทำงานต่อได้เหมือนเดิม**
 
@@ -50,7 +50,7 @@
 
 | ข้อจำกัด | ผลต่อเรา | วิธีรับมือ |
 | --- | --- | --- |
-| ผู้ใช้ที่เข้าหลังบ้านได้ **3 คน** | แอดมิน 1 + เจ้าหน้าที่ 2 | บัญชีระบบที่ไม่มีสิทธิ์เข้าหน้า admin (ตัว build เว็บ) ไม่นับ ถ้าต้องเพิ่มคนค่อยซื้อ license ไม่ต้องย้ายระบบ |
+| ผู้ใช้ที่เข้าหลังบ้านได้ **3 คน** | admin01, admin02, admin03 พอดี (ห้ามสร้างบัญชีที่ 4 รวมถึงบัญชีทดสอบ) | บัญชีระบบที่ไม่มีสิทธิ์เข้าหน้า admin (ตัว build เว็บ) ไม่นับ ถ้าต้องเพิ่มคนค่อยซื้อ license ไม่ต้องย้ายระบบ |
 | ตาราง 25, flow 5 | ใช้ ~5 ตาราง ไม่ใช้ flow | – |
 | ดูประวัติแก้ไขย้อนหลัง 30 วัน | ดูในหน้า admin ได้ 30 วัน | log การเข้าใช้ยังอยู่ใน nginx และ backup รายวันเก็บ 14 วัน + รายสัปดาห์ 8 สัปดาห์ |
 | ตั้งสิทธิ์แบบมีเงื่อนไขรายแถวไม่ได้ (เช่น "อ่านได้เฉพาะที่เผยแพร่") | บัญชีระบบสำหรับ build อ่านได้ทุกสถานะ | ตัว build กรอง `status = published` เอง token อยู่บน server เท่านั้น |
@@ -99,9 +99,9 @@ node directus/bootstrap.mjs         # เก็บ DIRECTUS_READ_TOKEN ที่
 ```
 
 จากนั้น
-1. เข้า `https://waritch-hosp.moph.go.th:8443` ด้วย admin คนแรก ระบบจะบังคับตั้ง 2FA ทันที (สแกน QR ด้วย Google Authenticator / Microsoft Authenticator)
+1. เข้า `https://waritch-hosp.moph.go.th:8443` ด้วย `admin01@waritch-hosp.moph.go.th` (บัญชีแรกที่ระบบสร้าง ไม่ต้องสร้างบัญชี admin แยก เพราะจะกินที่ 1 ใน 3) ระบบจะบังคับตั้ง 2FA ทันที (สแกน QR ด้วย Google Authenticator / Microsoft Authenticator)
 2. ลบ `ADMIN_EMAIL` และ `ADMIN_PASSWORD` ออกจาก `.env` แล้ว `docker compose up -d`
-3. สร้างบัญชีเจ้าหน้าที่ใน "ผู้ใช้" เลือก role **ประชาสัมพันธ์** ให้เจ้าหน้าที่นั่งตั้ง 2FA ต่อหน้าเราตอน login ครั้งแรก
+3. สร้าง `admin02@waritch-hosp.moph.go.th` และ `admin03@waritch-hosp.moph.go.th` ในเมนู "ผู้ใช้" แล้วเลือก role ให้แต่ละคน: **ผู้ดูแลระบบ** (ทำได้ทุกอย่าง) หรือ **ประชาสัมพันธ์** (แก้ได้แค่เนื้อหา) ตั้งต้นแนะนำให้ admin01 เป็นผู้ดูแลระบบ ส่วน admin02/03 เป็นประชาสัมพันธ์ ถ้าทั้งสามคนต้องเป็นผู้ดูแลระบบก็ได้ ให้แต่ละคนตั้ง 2FA ตอน login ครั้งแรก
 4. รัน bootstrap ครั้งต่อไปต้องใส่ OTP ของ admin: `ADMIN_OTP=123456 node directus/bootstrap.mjs`
 
 ระหว่างพัฒนาที่ยังไม่ได้ตั้ง nginx ใช้ `ssh -L 8055:127.0.0.1:8055 admin_waritch@192.168.1.251` แล้วเปิด `http://localhost:8055` ด้วย Chrome/Edge ได้ (IP ที่ Directus เห็นจะเป็น gateway ของ Docker ซึ่งอยู่ในช่วง LAN ที่อนุญาต)
@@ -169,7 +169,13 @@ cat migration/out/report.json      # ดูไฟล์ที่ดึงไม�
 - ชุดสำรองมี: `db.dump` (pg_dump), `uploads.tar.gz`, `env`, `SHA256SUMS` ตรวจความถูกต้องทั้งตอนสำรองและตอนกู้
 - cron ทุกวัน 01:30 เก็บรายวัน 14 ชุด + รายสัปดาห์ (วันอาทิตย์) 8 ชุด
   `30 1 * * * /srv/hospweb/scripts/backup.sh >> /var/log/hospweb-backup.log 2>&1`
-- ตั้ง `BACKUP_OFFSITE` ให้ rsync ไป NAS/เครื่องอื่น และ `BACKUP_GPG_RECIPIENT` ถ้าจะเข้ารหัส
+- ส่งสำเนาไป **NAS 192.168.1.241** ด้วย rsync ผ่าน ssh (ตั้ง `BACKUP_OFFSITE` ใน `.env`)
+  1. บน NAS: เปิด SSH/rsync service, สร้าง user `hospweb-backup` และโฟลเดอร์ปลายทาง (เช่น `/volume1/backup/hospweb`) ให้ user นี้เขียนได้เฉพาะโฟลเดอร์นี้
+  2. บน .251 (user ที่รัน cron): `ssh-keygen -t ed25519 -f ~/.ssh/hospweb_backup -N ''` แล้ว `ssh-copy-id -i ~/.ssh/hospweb_backup hospweb-backup@192.168.1.241`
+  3. ใน `~/.ssh/config`: `Host 192.168.1.241` / `IdentityFile ~/.ssh/hospweb_backup`
+  4. ทดสอบ `./scripts/backup.sh` แล้วดูว่าไฟล์ขึ้นบน NAS
+  ถ้า NAS ใช้ snapshot ได้ (เช่น Synology Btrfs) เปิด snapshot รายวันของโฟลเดอร์นี้ด้วย กัน ransomware ที่ลามจาก .251 ไปลบ backup
+- ตั้ง `BACKUP_GPG_RECIPIENT` ถ้าจะเข้ารหัสชุดสำรองก่อนส่งออก
 - **ทดสอบกู้คืนเดือนละครั้ง** บนเครื่อง dev (ใช้ restore.sh กับชุดล่าสุดของ production)
 - หน้าเว็บสาธารณะไม่ต้อง backup แยก เพราะ build ใหม่จาก Directus ได้ทุกเมื่อ
 - ทดสอบแล้ว: สำรอง → ลบข่าว → กู้คืน → ข่าวและไฟล์กลับมาครบ
@@ -190,7 +196,7 @@ cat migration/out/report.json      # ดูไฟล์ที่ดึงไม�
 ต้องทำบนเครื่องจริง
 - [ ] firewalld: เปิด 8443 เฉพาะ `192.168.0.0/16` และยืนยันว่า router ไม่ forward 8443
   `sudo firewall-cmd --permanent --add-rich-rule='rule family=ipv4 source address=192.168.0.0/16 port port=8443 protocol=tcp accept' && sudo firewall-cmd --reload`
-- [ ] DNS ภายใน (หรือ hosts ของเครื่องประชาสัมพันธ์) ชี้ `waritch-hosp.moph.go.th` → `192.168.1.251` เพื่อไม่ให้ผ่าน router แล้วกลายเป็น 192.168.1.1
+- [ ] เครื่องของ admin01–03: ชี้ `waritch-hosp.moph.go.th` → `192.168.1.251` (DNS ภายใน หรือแก้ `C:\Windows\System32\drivers\etc\hosts` เพิ่ม `192.168.1.251 waritch-hosp.moph.go.th`) แล้วเข้า `https://waritch-hosp.moph.go.th:8443` ต้องใช้ชื่อโดเมน ไม่ใช่ `https://192.168.1.251:8443` เพราะใบรับรองออกให้ *.moph.go.th ถ้าไม่ชี้ จะวิ่งผ่าน router กลายเป็น 192.168.1.1 แล้วถูก deny
 - [ ] อัปเกรด nginx 1.20 (2021) เป็นรุ่นที่ยัง support จาก AppStream หรือ nginx.org
 - [ ] `dnf-automatic` สำหรับ security update ของ OS, อัปเดต image Directus/Postgres ทุกเดือน (`docker compose pull && up -d` หลัง backup)
 - [ ] ส่ง backup ออกนอกเครื่อง (NAS) และทดสอบกู้คืนรายเดือน
@@ -203,14 +209,21 @@ cat migration/out/report.json      # ดูไฟล์ที่ดึงไม�
 2. `./scripts/backup.sh` บนเครื่อง dev → คัดลอกชุดสำรองไปเครื่องจริง → `./scripts/restore.sh <ชุด>` (ใช้ `.env` จากชุดสำรอง แก้ `PUBLIC_URL`)
 3. วาง nginx: `00-hospweb-maps.conf` และ `hospweb-admin.conf` ใน `/etc/nginx/conf.d/`, `hospweb-proxy.conf` และ `hospweb-public.conf` ใน `/etc/nginx/snippets/`, redirect map ใน `/srv/hospweb/redirects/` แก้ path ใบรับรองให้ตรงกับ `waritch.conf`
 4. build หน้าเว็บครั้งแรก ตรวจที่ `https://waritch-hosp.moph.go.th:8443/preview/` และให้ประชาสัมพันธ์ตรวจรับ
-5. **วัน cut-over** (นอกเวลาราชการ)
+5. **วัน cut-over** (นอกเวลาราชการ) ปิด WordPress หลัก แต่ยังเก็บไว้ครบเพื่อ rollback
+   - สำรอง WordPress เดิมทั้งชุดก่อน: `mysqldump` ฐาน `waritchhosp_db` (อยู่ที่ .254) + `tar` ไฟล์ WordPress หลักใน `/var/www/html` (ไม่รวมโฟลเดอร์แอปอื่น) เก็บที่ `/srv/hospweb/legacy-wp-<วันที่>/` และ NAS
    - รัน migration รอบสุดท้าย (ดึงข่าวที่เพิ่มหลังรอบแรก) แล้ว build ใหม่
    - คัดลอก `wp-content/uploads` เดิมไป `/srv/hospweb/legacy/wp-content/uploads` (ให้ลิงก์รูปเก่าที่เว็บอื่นอ้างถึงยังเปิดได้)
-   - ใน `conf.d/waritch.conf` ใส่ `include /etc/nginx/snippets/hospweb-public.conf;` แทนส่วน `location /` ของ WordPress เดิม เก็บ location ของแอปอื่นและ `snippets/phase0.conf` ไว้ครบ
-   - `sudo nginx -t && sudo systemctl reload nginx`
-   - ไล่ทดสอบ: หน้าแรก, ข่าว, ลิงก์เดิม 20 ลิงก์สุ่ม, แอปเดิมทุกตัว (`/waritch/*`, `/iclaim/`, `/ita67/`, `/dispensingx/`, `/HOSxP_Update/`)
-6. **ย้อนกลับ**: เอา include ออก คืน `location /` เดิม แล้ว reload nginx (ไม่กี่วินาที WordPress ยังอยู่ครบ ไม่ได้ลบ)
-7. หลังใช้งานได้ 30 วันไม่มีปัญหา: ปิด WordPress หลัก (ย้ายไฟล์ออกจาก webroot, เก็บ backup DB เดิมไว้)
+   - เก็บ `conf.d/waritch.conf` ปัจจุบันไว้เป็น `/root/hospweb-cutover/waritch.conf.wp` แล้วแก้ไฟล์จริง: ใส่ `include /etc/nginx/snippets/hospweb-public.conf;` แทน `location /` และ `location ~ \.php$` ส่วนที่เป็นของ WordPress หลัก เก็บ location ของแอปอื่น (`/waritch/`, `/iclaim/`, `/ita67/`, `/dispensingx/`, `/HOSxP_Update/`, `/hs4/` ฯลฯ) และ `snippets/phase0.conf` ไว้ครบ
+   - `sudo nginx -t && sudo systemctl reload nginx` ตั้งแต่ตอนนี้ WordPress หลัก**ไม่ถูกเรียกใช้อีก** (ไม่มีเส้นทางจากเว็บไปถึง PHP ของมัน) แต่ไฟล์และ DB ยังอยู่ php-fpm ยังรันต่อเพราะแอปอื่นใช้อยู่
+   - ไล่ทดสอบ: หน้าแรก, ข่าว, ลิงก์เดิม 20 ลิงก์สุ่ม, แอปเดิมทุกตัว
+6. **Rollback** (ถ้าเว็บใหม่มีปัญหา ใช้เวลาไม่ถึง 1 นาที)
+   ```bash
+   sudo cp /root/hospweb-cutover/waritch.conf.wp /etc/nginx/conf.d/waritch.conf
+   sudo nginx -t && sudo systemctl reload nginx
+   ```
+   WordPress กลับมาทันทีพร้อมข่าวทั้งหมดจนถึงวัน cut-over ข่าวที่ลงในเว็บใหม่ระหว่างนั้นยังอยู่ใน Directus ค่อยลงซ้ำใน WP หรือรอแก้แล้ว cut-over ใหม่ (redirect map ยังอยู่ ไม่กระทบ WordPress เพราะ include ถูกถอดออกแล้ว)
+   ระหว่างช่วงเฝ้าระวัง **ห้ามอัปเดต/ลบ WordPress หลัก** เพื่อให้ rollback ได้เสมอ
+7. หลังใช้งานได้ 30 วันไม่มีปัญหา: ย้ายไฟล์ WordPress หลักออกจาก webroot ไปไว้ใน `/srv/hospweb/legacy-wp-<วันที่>/` เก็บ dump DB เดิมไว้บน NAS อย่างน้อย 1 ปี แล้วค่อย drop ฐาน `waritchhosp_db` (ระวัง: `waritch/waritchaphum-hos` ใช้ฐานเดียวกัน ต้องเช็กก่อน)
 
 ## 11. ลำดับงานและเวลาโดยประมาณ
 
@@ -222,10 +235,12 @@ cat migration/out/report.json      # ดูไฟล์ที่ดึงไม�
 | 4 | ทดสอบความปลอดภัย (สแกน, ทดลองกู้คืน), อบรมเจ้าหน้าที่ 1 ชั่วโมง + คู่มือภาพ | 3–4 วัน |
 | 5 | cut-over + เฝ้าระวัง 30 วัน | 1 วัน + 30 วัน |
 
-## 12. คำถามที่ยังเปิดอยู่
+## 12. ข้อสรุปจากคำถาม (17 พ.ย. 2026)
 
-1. เจ้าหน้าที่ที่จะแก้เว็บคือใครบ้าง (รุ่นฟรีได้ 2 คน + แอดมิน)
-2. มี DNS ภายในไหม หรือจะตั้ง hosts ที่เครื่องประชาสัมพันธ์ (สำหรับเข้า :8443 ไม่ผ่าน router)
-3. มี NAS หรือเครื่องอื่นสำหรับเก็บ backup นอกเครื่องไหม
-4. มี SMTP สำหรับส่งอีเมลลืมรหัสผ่านไหม (ถ้าไม่มี แอดมินรีเซ็ตให้ได้)
-5. "server จริง" คือ .251 เดิม หรือเครื่องใหม่
+1. ผู้ใช้หลังบ้าน: **admin01, admin02, admin03** (ครบ 3 ที่ของรุ่นฟรีพอดี)
+2. คนนอกเข้า admin ไม่ได้ ข้างในเข้า `https://waritch-hosp.moph.go.th:8443` โดยชี้ชื่อโดเมนไปที่ .251
+3. backup นอกเครื่องไปที่ **NAS 192.168.1.241**
+4. SMTP มี ใส่ทีหลังได้ (ระหว่างนี้ admin01 รีเซ็ตรหัสให้คนอื่น)
+5. deploy บน **.251 เดิม** ปิด WordPress หลักตอน cut-over แต่เก็บไว้ rollback ได้ (หัวข้อ 10)
+
+ที่ยังต้องยืนยัน: admin02/03 เป็นผู้ดูแลระบบหรือประชาสัมพันธ์ (ตั้งต้นเป็นประชาสัมพันธ์), NAS ยี่ห้ออะไรและเปิด SSH/rsync ได้ไหม
