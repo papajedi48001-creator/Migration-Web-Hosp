@@ -1,0 +1,12 @@
+{
+  "name": "directus-extension-enforce-tfa",
+  "version": "1.0.0",
+  "description": "บล็อกการใช้งาน API ของผู้ใช้ที่ policy บังคับ 2FA แต่ยังไม่ได้ตั้ง 2FA",
+  "type": "module",
+  "directus:extension": {
+    "type": "hook",
+    "path": "index.js",
+    "source": "index.js",
+    "host": "^12.0.0"
+  }
+}
