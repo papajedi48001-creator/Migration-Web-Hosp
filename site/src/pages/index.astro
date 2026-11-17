@@ -1,0 +1,338 @@
+---
+import Base from '../layouts/Base.astro';
+import { CATEGORIES, getBanners, getNews } from '../lib/directus.js';
+import { mediaUrl } from '../lib/media.js';
+import { card, catHref, pinnedFirst } from '../lib/news.js';
+import { getSite, href, pageHref, plain, safeLink, telHref } from '../lib/site.js';
+
+const { settings, pages, name } = await getSite();
+const [banners, news] = await Promise.all([getBanners(), getNews()]);
+
+// แบนเนอร์
+const slides = await Promise.all(
+	banners.filter((b) => b.image).map(async (b) => ({ title: b.title, img: await mediaUrl(b.image, 'banner'), link: safeLink(b.link) })),
+);
+const directorPhoto = settings.director_photo ? await mediaUrl(settings.director_photo, 'content') : null;
+
+// ไอคอนบริการ = หน้าเว็บในเมนู "สำหรับผู้ป่วย" (+ LINE OA)
+const ICONS = {
+	calendar: '<rect x="3" y="4" width="18" height="17" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path>',
+	list: '<path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"></path>',
+	card: '<rect x="2" y="5" width="20" height="14" rx="2"></rect><path d="M2 10h20"></path>',
+	chat: '<path d="M21 11.5a8.4 8.4 0 0 1-12.3 7.4L3 21l2.1-5.7A8.5 8.5 0 1 1 21 11.5z"></path>',
+	download: '<path d="M12 3v12M7 10l5 5 5-5M5 21h14"></path>',
+	message: '<path d="M4 4h16v12H8l-4 4z"></path>',
+	doc: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path>',
+};
+const iconFor = (p) => {
+	const s = `${p.slug ?? ''} ${p.title}`;
+	if (/doctor|schedule|ตาราง|แพทย์/i.test(s)) return ICONS.calendar;
+	if (/step|ขั้นตอน/i.test(s)) return ICONS.list;
+	if (/right|สิทธิ/i.test(s)) return ICONS.card;
+	if (/form|download|แบบฟอร์ม|ดาวน์โหลด/i.test(s)) return ICONS.download;
+	if (/complain|feedback|ร้องเรียน|เสนอแนะ/i.test(s)) return ICONS.message;
+	if (/appoint|นัด/i.test(s)) return ICONS.chat;
+	return ICONS.doc;
+};
+const tiles = pages.filter((p) => p.menu_group === 'patients').map((p) => ({ label: p.title, href: pageHref(p), icon: iconFor(p), external: false }));
+const line = safeLink(settings.line_url);
+if (line) tiles.push({ label: 'นัดหมาย / LINE OA', href: line, icon: ICONS.chat, external: true });
+
+// ข่าว: แท็บ "ทั้งหมด" ไม่รวมจัดซื้อจัดจ้าง (มีส่วนของตัวเองด้านล่าง)
+const general = news.filter((n) => n.category !== 'procurement');
+const tabs = [{ key: 'all', label: 'ทั้งหมด', list: general }];
+for (const [key, label] of Object.entries(CATEGORIES)) {
+	if (key === 'procurement') continue;
+	const list = general.filter((n) => n.category === key);
+	if (list.length) tabs.push({ key, label, list });
+}
+const panels = await Promise.all(
+	tabs.map(async (t) => {
+		const [lead, ...rest] = pinnedFirst(t.list).slice(0, 5);
+		return { ...t, lead: lead ? await card(lead, 'content') : null, rest: await Promise.all(rest.map((n) => card(n))) };
+	}),
+);
+const procurement = await Promise.all(
+	news
+		.filter((n) => n.category === 'procurement')
+		.slice(0, 5)
+		.map((n) => card(n)),
+);
+
+// ติดต่อ
+const mapUrl = safeLink(settings.map_url);
+const mapEmbed = mapUrl && /^https:\/\/www\.google\.com\/maps\/embed/.test(mapUrl) ? mapUrl : null;
+const phoneHref = telHref(settings.phone);
+---
+
+<Base current={href('')}>
+	<section class="hero" aria-label="แบนเนอร์">
+		<div class="wrap">
+			<div class="slider" data-slider>
+				<div class="slides">
+					{
+						slides.length ? (
+							slides.map((s, i) => (
+								<div class:list={['slide', { on: i === 0 }]} aria-hidden={i === 0 ? undefined : 'true'}>
+									{s.link ? (
+										<a href={s.link}>
+											<img src={s.img} alt={s.title} width="1920" height="640" fetchpriority={i === 0 ? 'high' : undefined} loading={i === 0 ? 'eager' : 'lazy'} />
+										</a>
+									) : (
+										<img src={s.img} alt={s.title} width="1920" height="640" fetchpriority={i === 0 ? 'high' : undefined} loading={i === 0 ? 'eager' : 'lazy'} />
+									)}
+								</div>
+							))
+						) : (
+							<div class="slide on hero-empty">
+								<div class="slide-text">
+									<h1>{name}</h1>
+									<span>ห้องฉุกเฉินเปิดบริการตลอด 24 ชั่วโมง</span>
+								</div>
+							</div>
+						)
+					}
+				</div>
+				{
+					slides.length > 1 && (
+						<div class="dots" role="group" aria-label="เลือกแบนเนอร์">
+							{slides.map((s, i) => (
+								<button type="button" aria-label={`แบนเนอร์ที่ ${i + 1}: ${s.title}`} aria-current={i === 0 ? 'true' : 'false'} />
+							))}
+						</div>
+					)
+				}
+			</div>
+			{
+				(settings.director_name || directorPhoto) && (
+					<figure class="director">
+						{directorPhoto ? <img src={directorPhoto} alt={settings.director_name ?? ''} width="300" height="340" /> : <div class="ph" aria-hidden="true" />}
+						<figcaption>
+							{settings.director_name && <span class="director-name">{settings.director_name}</span>}
+							<span class="director-title">{settings.director_title || `ผู้อำนวยการ${name}`}</span>
+						</figcaption>
+					</figure>
+				)
+			}
+		</div>
+	</section>
+	{slides.length > 0 && <h1 class="sr-only">{name}</h1>}
+
+	{
+		tiles.length > 0 && (
+			<section class="wrap section" aria-labelledby="h-services">
+				<h2 id="h-services" style="margin-bottom:20px">
+					บริการสำหรับผู้ป่วย
+				</h2>
+				<div class="tiles">
+					{tiles.map((t) => (
+						<a class="tile" href={t.href} {...(t.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
+							<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#0E7C66" stroke-width="1.8" aria-hidden="true" set:html={t.icon} />
+							<span>{t.label}</span>
+						</a>
+					))}
+				</div>
+			</section>
+		)
+	}
+
+	<section class="wrap section" aria-labelledby="h-news">
+		<div class="section-head">
+			<h2 id="h-news">ข่าวสาร</h2>
+			<a class="more" href={href('news/')}>ดูข่าวทั้งหมด →</a>
+		</div>
+		{
+			panels.length > 1 && (
+				<div class="pills" role="tablist" aria-label="หมวดข่าว" data-tabs>
+					{panels.map((p, i) => (
+						<a class="pill" role="tab" id={`tab-${p.key}`} href={p.key === 'all' ? href('news/') : catHref(p.key)} aria-controls={`panel-${p.key}`} aria-selected={i === 0 ? 'true' : 'false'} tabindex={i === 0 ? undefined : '-1'}>
+							{p.label}
+						</a>
+					))}
+				</div>
+			)
+		}
+		{
+			panels.map((p, i) => (
+				<div class="tabpanel" role="tabpanel" id={`panel-${p.key}`} aria-labelledby={panels.length > 1 ? `tab-${p.key}` : undefined} hidden={i !== 0}>
+					{p.lead ? (
+						<div class="news-grid">
+							<a class="news-lead" href={p.lead.href}>
+								{p.lead.img ? <img class="cover" src={p.lead.img} alt="" width="800" height="320" loading="lazy" /> : <div class="ph" aria-hidden="true" />}
+								<span class="meta">
+									{p.lead.draft && <span class="badge badge-pin">ฉบับร่าง</span>}
+									{p.lead.pinned && <span class="badge badge-pin">ปักหมุด</span>}
+									<span>{p.lead.cat}</span>
+									{p.lead.date && <span aria-hidden="true">·</span>}
+									{p.lead.date && <time datetime={p.lead.iso}>{p.lead.date}</time>}
+								</span>
+								<h3>{p.lead.title}</h3>
+								{p.lead.summary && <p>{p.lead.summary}</p>}
+							</a>
+							<div class="news-side">
+								{p.rest.map((n) => (
+									<a class="news-item" href={n.href}>
+										{n.img ? <img class="cover" src={n.img} alt="" width="120" height="90" loading="lazy" /> : <div class="ph" aria-hidden="true" />}
+										<div>
+											<span class="news-cat">{n.cat}</span>
+											<span class="news-title">{n.title}</span>
+											{n.date && <time class="news-date" datetime={n.iso}>{n.date}</time>}
+										</div>
+									</a>
+								))}
+							</div>
+						</div>
+					) : (
+						<p class="empty">ยังไม่มีข่าว</p>
+					)}
+				</div>
+			))
+		}
+	</section>
+
+	{
+		procurement.length > 0 && (
+			<section class="section-soft" aria-labelledby="h-procurement">
+				<div class="wrap">
+					<div class="section-head">
+						<h2 id="h-procurement">ประกาศจัดซื้อจัดจ้าง</h2>
+						<a class="more" href={catHref('procurement')}>ดูทั้งหมด →</a>
+					</div>
+					<ul class="doc-list">
+						{procurement.map((n) => (
+							<li>
+								{n.date && <time class="news-date" datetime={n.iso}>{n.date}</time>}
+								<a href={n.href}>{n.title}</a>
+								{n.fileType && (
+									<span class="ftype">
+										<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+											<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+											<path d="M14 2v6h6" />
+										</svg>
+										{n.fileType}
+									</span>
+								)}
+							</li>
+						))}
+					</ul>
+				</div>
+			</section>
+		)
+	}
+
+	<section class="wrap section" id="contact" aria-labelledby="h-contact" style="padding-bottom:56px">
+		<div class="contact">
+			<div class="contact-info">
+				<h2 id="h-contact">ติดต่อโรงพยาบาล</h2>
+				<dl>
+				{
+					settings.opening_hours && (
+						<div>
+							<dt>เวลาทำการ</dt>
+							<dd>{plain(settings.opening_hours)}</dd>
+						</div>
+					)
+				}
+				{
+					settings.phone && (
+						<div>
+							<dt>โทรศัพท์</dt>
+							<dd>{phoneHref ? <a href={phoneHref}>{settings.phone}</a> : settings.phone}</dd>
+						</div>
+					)
+				}
+				<div>
+					<dt>เหตุฉุกเฉิน</dt>
+					<dd><a href={telHref(settings.emergency_phone || '1669')}>{settings.emergency_phone || '1669'}</a> (ตลอด 24 ชั่วโมง)</dd>
+				</div>
+				{
+					settings.address && (
+						<div>
+							<dt>ที่อยู่</dt>
+							<dd>{plain(settings.address)}</dd>
+						</div>
+					)
+				}
+				{
+					mapUrl && !mapEmbed && (
+						<div>
+							<a class="btn" href={mapUrl} target="_blank" rel="noopener noreferrer">
+								เปิดแผนที่ Google Maps
+							</a>
+						</div>
+					)
+				}
+				</dl>
+			</div>
+			{
+				mapEmbed && (
+					<div class="contact-map">
+						<iframe src={mapEmbed} title={`แผนที่${name}`} loading="lazy" referrerpolicy="no-referrer-when-downgrade" />
+					</div>
+				)
+			}
+		</div>
+	</section>
+</Base>
+
+<script>
+	// แบนเนอร์เลื่อนเอง ทุก 7 วินาที (หยุดเมื่อเอาเมาส์วาง หรือผู้ใช้ตั้งค่าลดการเคลื่อนไหว)
+	const slider = document.querySelector<HTMLElement>('[data-slider]');
+	const slides = slider ? [...slider.querySelectorAll<HTMLElement>('.slide')] : [];
+	const dots = slider ? [...slider.querySelectorAll<HTMLButtonElement>('.dots button')] : [];
+	if (slides.length > 1) {
+		let cur = 0;
+		let timer: number | undefined;
+		const show = (i: number) => {
+			cur = (i + slides.length) % slides.length;
+			slides.forEach((s, j) => {
+				s.classList.toggle('on', j === cur);
+				if (j === cur) s.removeAttribute('aria-hidden');
+				else s.setAttribute('aria-hidden', 'true');
+				s.querySelectorAll('a').forEach((a) => (j === cur ? a.removeAttribute('tabindex') : a.setAttribute('tabindex', '-1')));
+			});
+			dots.forEach((d, j) => d.setAttribute('aria-current', String(j === cur)));
+		};
+		const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+		const start = () => {
+			if (!reduce) timer = window.setInterval(() => show(cur + 1), 7000);
+		};
+		const stop = () => window.clearInterval(timer);
+		dots.forEach((d, j) =>
+			d.addEventListener('click', () => {
+				stop();
+				show(j);
+			}),
+		);
+		slider!.addEventListener('mouseenter', stop);
+		slider!.addEventListener('mouseleave', start);
+		slider!.addEventListener('focusin', stop);
+		show(0);
+		start();
+	}
+
+	// แท็บหมวดข่าว (ถ้าไม่มี JavaScript จะเป็นลิงก์ไปหน้าหมวดตามปกติ)
+	const tablist = document.querySelector<HTMLElement>('[data-tabs]');
+	if (tablist) {
+		const tabs = [...tablist.querySelectorAll<HTMLAnchorElement>('[role="tab"]')];
+		const select = (tab: HTMLAnchorElement, focus = false) => {
+			tabs.forEach((t) => {
+				const on = t === tab;
+				t.setAttribute('aria-selected', String(on));
+				t.tabIndex = on ? 0 : -1;
+				document.getElementById(t.getAttribute('aria-controls')!)!.hidden = !on;
+			});
+			if (focus) tab.focus();
+		};
+		tabs.forEach((t, i) => {
+			t.addEventListener('click', (e) => {
+				e.preventDefault();
+				select(t);
+			});
+			t.addEventListener('keydown', (e) => {
+				const k = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+				if (k) select(tabs[(i + k + tabs.length) % tabs.length], true);
+			});
+		});
+	}
+</script>

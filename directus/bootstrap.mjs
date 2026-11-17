@@ -6,12 +6,12 @@
 //
 // ตัวแปรเสริม
 //   LAN_CIDRS     ช่วง IP ที่ให้เข้าหลังบ้านได้ (ค่าเริ่ม: 192.168.0.0/16,10.0.0.0/8,172.16.0.0/12,127.0.0.1)
-//   PREVIEW_URL   URL ของ preview server ของ Astro เช่น https://waritch-hosp.moph.go.th:8443/preview
+//   PREVIEW_URL   URL ของหน้าตัวอย่างฉบับร่าง (ค่าเริ่ม: PUBLIC_URL + /preview เช่น https://waritch-hosp.moph.go.th:8443/preview)
 //   ENFORCE_TFA   "false" เพื่อปิดการบังคับ 2FA ชั่วคราวตอนทดสอบ (ค่าเริ่ม: true)
 
 const URL_ = process.env.DIRECTUS_URL ?? 'http://127.0.0.1:8055';
 const LAN = (process.env.LAN_CIDRS ?? '192.168.0.0/16,10.0.0.0/8,172.16.0.0/12,127.0.0.1').split(',').map((s) => s.trim());
-const PREVIEW = process.env.PREVIEW_URL ?? '';
+const PREVIEW = (process.env.PREVIEW_URL ?? (process.env.PUBLIC_URL ? `${process.env.PUBLIC_URL}/preview` : '')).replace(/\/+$/, '');
 const ENFORCE_TFA = process.env.ENFORCE_TFA !== 'false';
 
 let token;
@@ -120,7 +120,7 @@ const collections = [
 			archive_value: 'draft',
 			unarchive_value: 'published',
 			display_template: '{{title}}',
-			preview_url: PREVIEW ? `${PREVIEW}/news/{{id}}` : null,
+			preview_url: PREVIEW ? `${PREVIEW}/news/{{id}}/` : null,
 		},
 		fields: [
 			statusField,
@@ -149,7 +149,7 @@ const collections = [
 			sort: 2,
 			sort_field: 'sort',
 			display_template: '{{title}}',
-			preview_url: PREVIEW ? `${PREVIEW}/pages/{{id}}` : null,
+			preview_url: PREVIEW ? `${PREVIEW}/pages/{{id}}/` : null,
 		},
 		fields: [
 			statusField,
@@ -277,6 +277,7 @@ async function ensureCollections() {
 				await api('POST', `/fields/${c.collection}`, f);
 				console.log(`+ ${c.collection}.${f.field}`);
 			}
+			if (c.meta.preview_url !== undefined) await api('PATCH', `/collections/${c.collection}`, { meta: { preview_url: c.meta.preview_url } });
 			continue;
 		}
 		const pk = c.meta.singleton

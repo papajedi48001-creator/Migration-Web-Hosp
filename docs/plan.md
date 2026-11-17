@@ -69,8 +69,19 @@ migration/wp-to-directus.mjs     ย้ายข่าว/หน้า/รูป
 scripts/gen-secrets.sh           สุ่มรหัสลับใส่ .env
 scripts/backup.sh                สำรอง DB + ไฟล์ + .env
 scripts/restore.sh               กู้คืน (ใช้ย้ายเครื่องได้ด้วย)
-nginx/                           config ฝั่ง host: เว็บสาธารณะ, หลังบ้าน :8443, redirect
-site/                            (เฟส 2) หน้าเว็บ Astro
+scripts/setup-server.sh          ติดตั้งเฟส 1 บน .251 คำสั่งเดียว (rollback ได้)
+scripts/build-site.sh            สร้างหน้าเว็บ static + preview ฉบับร่าง สลับขึ้นเว็บแบบไม่มีช่วงล่ม (cron ทุก 1 นาที)
+nginx/                           config ฝั่ง host: เว็บสาธารณะ, หลังบ้าน :8443, redirect, header ความปลอดภัย
+site/                            หน้าเว็บ Astro (ดึงข้อมูลจาก Directus ตอน build เท่านั้น)
+```
+
+ที่อยู่บน server: โค้ด (repo นี้) อยู่ `/opt/hospweb` ส่วนไฟล์ที่ nginx เสิร์ฟอยู่ `/srv/hospweb`
+
+```
+/srv/hospweb/site/current     -> releases/<เวลา>   หน้าเว็บจริง (เก็บ 5 ชุดล่าสุด ถอยกลับได้)
+/srv/hospweb/preview/current  -> releases/<เวลา>   ตัวอย่างรวมฉบับร่าง (:8443/preview/)
+/srv/hospweb/redirects/       redirect map จาก migration
+/srv/hospweb/legacy/          สำเนา wp-content/uploads เดิม (read-only)
 ```
 
 ## 4. ติดตั้งบนเครื่องพัฒนา (Docker เครื่องเดิม)
@@ -82,12 +93,22 @@ site/                            (เฟส 2) หน้าเว็บ Astro
 | Directus | `127.0.0.1:8055` | เฉพาะ nginx บนเครื่อง |
 | PostgreSQL | ไม่เปิด | เฉพาะ container directus (network internal) |
 | หลังบ้านผ่าน nginx | `8443` | LAN เท่านั้น |
-| preview (เฟส 2) | `127.0.0.1:4321` | ผ่าน `:8443/preview/` |
+| preview ฉบับร่าง | ไม่มี (ไฟล์ static) | `:8443/preview/` LAN เท่านั้น |
+
+**ติดตั้งบน .251 แบบคำสั่งเดียว (เฟส 1)**: ทำทุกขั้นด้านล่าง + nginx :8443 + firewalld + SELinux + cron + กุญแจ ssh สำหรับ NAS ให้เอง ไม่แตะ `waritch.conf`/WordPress รันซ้ำได้ และถอนได้ด้วย `rollback`
 
 ```bash
-sudo mkdir -p /srv/hospweb && sudo chown $USER /srv/hospweb
-git clone https://github.com/papajedi48001-creator/Migration-Web-Hosp /srv/hospweb
-cd /srv/hospweb
+sudo git clone https://github.com/papajedi48001-creator/Migration-Web-Hosp /opt/hospweb
+cd /opt/hospweb && sudo ./scripts/setup-server.sh
+# ถอน: sudo ./scripts/setup-server.sh rollback   (ข้อมูลไม่ถูกลบ)
+```
+
+ขั้นตอนแบบทำเอง (สิ่งที่สคริปต์ทำ)
+
+```bash
+sudo mkdir -p /opt/hospweb && sudo chown $USER /opt/hospweb
+git clone https://github.com/papajedi48001-creator/Migration-Web-Hosp /opt/hospweb
+cd /opt/hospweb
 ./scripts/gen-secrets.sh            # สร้าง .env + รหัสลับ + รหัส admin คนแรก (แสดงครั้งเดียว)
 nano .env                           # ตั้ง PUBLIC_URL, BACKUP_DIR
 docker compose up -d
@@ -95,8 +116,14 @@ docker compose ps                   # รอ directus เป็น healthy
 
 # ตั้งค่าหลังบ้าน (ครั้งแรกยังไม่ต้องใส่ OTP)
 set -a; . ./.env; set +a
-node directus/bootstrap.mjs         # เก็บ DIRECTUS_READ_TOKEN ที่แสดงไว้ (แสดงครั้งเดียว)
+node directus/bootstrap.mjs         # นำ DIRECTUS_READ_TOKEN ที่แสดง (ครั้งเดียว) ไปใส่ใน .env
+
+# หน้าเว็บ
+sudo ./scripts/build-site.sh --install   # ติดตั้ง package ของ site/ + สร้างโฟลเดอร์ /srv/hospweb
+sudo ./scripts/build-site.sh --force     # build ครั้งแรก
 ```
+
+พัฒนาหน้าเว็บบนเครื่องตัวเอง: `cd site && cp .env.example .env` (ใส่ token) แล้ว `npm ci && npm run dev`
 
 จากนั้น
 1. เข้า `https://waritch-hosp.moph.go.th:8443` ด้วย `admin01@waritch-hosp.moph.go.th` (บัญชีแรกที่ระบบสร้าง ไม่ต้องสร้างบัญชี admin แยก เพราะจะกินที่ 1 ใน 3) ระบบจะบังคับตั้ง 2FA ทันที (สแกน QR ด้วย Google Authenticator / Microsoft Authenticator)
@@ -124,7 +151,7 @@ node directus/bootstrap.mjs         # เก็บ DIRECTUS_READ_TOKEN ที่
 
 ไฟล์ที่อัปโหลดได้: รูป (jpg/png/webp/gif/svg), PDF, Word, Excel ไม่เกิน 10 MB ไม่เก็บ EXIF/GPS ของรูป
 
-ปุ่ม **preview**: เปิดดูหน้าตาจริงของข่าวที่ยังเป็นฉบับร่างได้ (ใช้ preview server ของ Astro เฟส 2)
+ปุ่ม **ดูตัวอย่าง** (รูปตา มุมขวาบนของข่าว/หน้าเว็บ): เปิดหน้าตาจริงของข่าวที่ยังเป็นฉบับร่างได้ที่ `:8443/preview/` หน้าตัวอย่างสร้างใหม่ภายใน ~1 นาทีหลังกดบันทึก (ถ้ายังไม่ขึ้นให้รอแล้วรีเฟรช) ข่าวที่ตั้งวันที่ประกาศล่วงหน้าก็เห็นในตัวอย่าง
 
 ## 6. หน้าเว็บสาธารณะ (Astro) — เฟส 2
 
@@ -133,9 +160,17 @@ node directus/bootstrap.mjs         # เก็บ DIRECTUS_READ_TOKEN ที่
 - ค้นหาในเว็บด้วย Pagefind (static ไม่ต้องมี server)
 - รองรับมือถือ, อ่านง่ายสำหรับผู้สูงอายุ (ตัวอักษรใหญ่, contrast ตาม WCAG AA), ฟอนต์ไทยแบบ self-host
 - ไม่มี cookie/tracking ของบุคคลที่สาม จึงไม่ต้องมี cookie banner ตาม PDPA (ถ้าจะใส่ Google Analytics ค่อยเพิ่ม)
-- **การ build**: `scripts/build-site.sh` รันจาก cron ทุก 5 นาที เช็กว่ามีการแก้ไขใหม่ใน Directus ไหม (ดู `date_updated` ล่าสุด) ถ้ามีจึง build ใหม่ลงโฟลเดอร์ใหม่ แล้วสลับ symlink `/srv/hospweb/site/current` แบบ atomic เก็บ build เก่าไว้ 5 ชุดเพื่อย้อนกลับได้ทันที ไม่ต้องเปิดช่องให้ Directus เรียกเข้ามา
-  เจ้าหน้าที่กดเผยแพร่แล้ว ข่าวขึ้นเว็บภายใน ~5 นาที
-- **preview**: Astro โหมด SSR อีกตัว รันที่ `127.0.0.1:4321` อ่านฉบับร่างได้ เข้าผ่าน `:8443/preview/` จึงเห็นได้แค่ใน LAN
+- **การ build**: `scripts/build-site.sh` รันจาก cron ทุก 1 นาที เช็กว่าเนื้อหาใน Directus เปลี่ยนไหม (จำนวนและเวลาแก้ไขล่าสุดของทุกตาราง รวมการลบและเปลี่ยนสถานะ) ถ้าเปลี่ยนจึง build ใหม่ใน container `site-builder` (อยู่ในเครือข่ายปิด อ่าน Directus ด้วย token อ่านอย่างเดียว) ตรวจผล แล้วสลับ symlink `/srv/hospweb/site/current` แบบ atomic ไม่ต้องเปิดช่องให้ Directus เรียกเข้ามา
+  - เจ้าหน้าที่กดบันทึกแล้ว ข่าวขึ้นเว็บภายใน 1–2 นาที
+  - build ใหม่ทุกชั่วโมงด้วย เพื่อให้ข่าวที่ตั้งเวลาประกาศ และแบนเนอร์ที่ตั้งช่วงวันแสดง ขึ้น/ลงเอง (คลาดได้ไม่เกิน 1 ชั่วโมง)
+  - build ล้มหรือได้จำนวนหน้าน้อยกว่าครึ่งของชุดเดิม จะไม่สลับ เว็บยังเป็นชุดเดิม ดูสาเหตุที่ `/srv/hospweb/site/build.log`
+  - เก็บ 5 ชุดล่าสุด ไฟล์ที่ไม่เปลี่ยนใช้ hardlink ร่วมกันจึงไม่เปลือง disk ถอยกลับชุดก่อนหน้า: `sudo ./scripts/build-site.sh --rollback`
+- **รูปและไฟล์แนบ** คัดลอกจาก Directus มาเป็นไฟล์ในเว็บ (`/media/`) รูปย่อเป็น webp ตามขนาดที่ใช้ คนนอกจึงไม่ต้องเข้าถึง Directus เลย ไฟล์ที่ลบในหลังบ้านหายจากเว็บใน build ถัดไป
+- **เนื้อหาจาก editor** ถูกกรองก่อนแสดง: ตัด script/event handler ทิ้ง, รูปต้องเป็นไฟล์ในเว็บ, iframe ได้เฉพาะ YouTube / Google Maps / Facebook
+- **เมนู** สร้างจากช่อง "อยู่ในเมนู" ของหน้าเว็บ (หมวดเดียวมีหน้าเดียวเป็นลิงก์ตรง หลายหน้าเป็นเมนูย่อย) ไอคอน "บริการสำหรับผู้ป่วย" หน้าแรก = หน้าเว็บในเมนู "สำหรับผู้ป่วย" + LINE OA (ถ้ากรอกไว้)
+- **ลิงก์**: ข่าว `/news/<slug>/` (ไม่มี slug หรือ slug ภาษาไทยใช้ `/news/<id>/`), หน้าเว็บ `/<slug>/` หรือ `/pages/<id>/`, หมวด `/news/category/<หมวด>/`, เลขหน้า `/news/page/2/`
+- **preview**: build อีกชุดที่รวมฉบับร่าง ใช้ไฟล์ static เหมือนกัน เสิร์ฟที่ `:8443/preview/` จึงเห็นได้แค่ใน LAN ไม่มี server เพิ่ม
+- CSP ของหน้าเว็บอยู่ที่ `nginx/hospweb-headers.conf` (ไม่มี inline script; `'wasm-unsafe-eval'` สำหรับ Pagefind เท่านั้น)
 
 ## 7. ย้ายเนื้อหาจาก WordPress
 
@@ -169,7 +204,7 @@ cat migration/out/report.json      # ดูไฟล์ที่ดึงไม�
 ```
 - ชุดสำรองมี: `db.dump` (pg_dump), `uploads.tar.gz`, `env`, `SHA256SUMS` ตรวจความถูกต้องทั้งตอนสำรองและตอนกู้
 - cron ทุกวัน 01:30 เก็บรายวัน 14 ชุด + รายสัปดาห์ (วันอาทิตย์) 8 ชุด
-  `30 1 * * * /srv/hospweb/scripts/backup.sh >> /var/log/hospweb-backup.log 2>&1`
+  `30 1 * * * /opt/hospweb/scripts/backup.sh >> /var/log/hospweb-backup.log 2>&1`
 - ส่งสำเนาไป **NAS 192.168.1.241** ด้วย rsync ผ่าน ssh (ตั้ง `BACKUP_OFFSITE` ใน `.env`)
   1. บน Synology (DSM):
      - Control Panel > File Services > rsync: ติ๊ก **Enable rsync service** (ใช้พอร์ต SSH 22)
@@ -211,10 +246,10 @@ cat migration/out/report.json      # ดูไฟล์ที่ดึงไม�
 
 ใช้วิธีเดียวกับย้ายเครื่อง: backup จากเครื่อง dev แล้ว restore บนเครื่องจริง
 
-1. ติดตั้ง Docker บนเครื่องจริง, clone repo ไป `/srv/hospweb`
+1. ติดตั้ง Docker บนเครื่องจริง, clone repo ไป `/opt/hospweb`
 2. `./scripts/backup.sh` บนเครื่อง dev → คัดลอกชุดสำรองไปเครื่องจริง → `./scripts/restore.sh <ชุด>` (ใช้ `.env` จากชุดสำรอง แก้ `PUBLIC_URL`)
-3. วาง nginx: `00-hospweb-maps.conf` และ `hospweb-admin.conf` ใน `/etc/nginx/conf.d/`, `hospweb-proxy.conf` และ `hospweb-public.conf` ใน `/etc/nginx/snippets/`, redirect map ใน `/srv/hospweb/redirects/` แก้ path ใบรับรองให้ตรงกับ `waritch.conf`
-4. build หน้าเว็บครั้งแรก ตรวจที่ `https://waritch-hosp.moph.go.th:8443/preview/` และให้ประชาสัมพันธ์ตรวจรับ
+3. วาง nginx: `00-hospweb-maps.conf` และ `hospweb-admin.conf` ใน `/etc/nginx/conf.d/`, `hospweb-proxy.conf` `hospweb-headers.conf` และ `hospweb-public.conf` ใน `/etc/nginx/snippets/`, redirect map ใน `/srv/hospweb/redirects/` แก้ path ใบรับรองให้ตรงกับ `waritch.conf`
+4. `sudo ./scripts/build-site.sh --install && sudo ./scripts/build-site.sh --force` แล้วตั้ง cron ของ root: `* * * * * /opt/hospweb/scripts/build-site.sh >> /var/log/hospweb-build.log 2>&1` ตรวจที่ `https://waritch-hosp.moph.go.th:8443/preview/` และให้ประชาสัมพันธ์ตรวจรับ
 5. **วัน cut-over** (นอกเวลาราชการ) ปิด WordPress หลัก แต่ยังเก็บไว้ครบเพื่อ rollback
    - สำรอง WordPress เดิมทั้งชุดก่อน: `mysqldump` ฐาน `waritchhosp_db` (อยู่ที่ .254) + `tar` ไฟล์ WordPress หลักใน `/var/www/html` (ไม่รวมโฟลเดอร์แอปอื่น) เก็บที่ `/srv/hospweb/legacy-wp-<วันที่>/` และ NAS
    - รัน migration รอบสุดท้าย (ดึงข่าวที่เพิ่มหลังรอบแรก) แล้ว build ใหม่

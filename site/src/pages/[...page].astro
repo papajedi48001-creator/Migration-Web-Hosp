@@ -1,0 +1,48 @@
+---
+// หน้าเว็บทั่วไป /<slug>/ หรือ /pages/<id>/
+import Base from '../layouts/Base.astro';
+import { getPages } from '../lib/directus.js';
+import { renderBody } from '../lib/media.js';
+import { MENU_GROUPS, href, pageHref, plain, safePageKey } from '../lib/site.js';
+
+export async function getStaticPaths() {
+	return (await getPages()).map((p) => ({ params: { page: safePageKey(p) }, props: { id: p.id } }));
+}
+
+const pages = await getPages();
+const p = pages.find((x) => x.id === Astro.props.id);
+const body = await renderBody(p.body);
+const group = MENU_GROUPS.find((g) => g.value === p.menu_group);
+const siblings = group ? pages.filter((x) => x.menu_group === p.menu_group) : [];
+const self = pageHref(p);
+---
+
+<Base title={p.title} description={plain(p.body).replace(/\s+/g, ' ').slice(0, 160)} current={self}>
+	<div class="wrap page-main">
+		<nav class="crumbs" aria-label="ตำแหน่งหน้า">
+			<ol>
+				<li><a href={href('')}>หน้าแรก</a></li>
+				{group && <li>{group.label}</li>}
+			</ol>
+		</nav>
+		<div class="article-layout">
+			<article class="article" data-pagefind-body>
+				{p.status !== 'published' && <div class="meta"><span class="badge badge-pin">ฉบับร่าง</span></div>}
+				<h1>{p.title}</h1>
+				<div class="prose" set:html={body} />
+			</article>
+			{
+				siblings.length > 1 && (
+					<nav class="aside" aria-labelledby="h-siblings" data-pagefind-ignore>
+						<h2 id="h-siblings">{group.label}</h2>
+						{siblings.map((x) => (
+							<a class="aside-item" href={pageHref(x)} aria-current={pageHref(x) === self ? 'page' : undefined}>
+								<span class="news-title">{x.title}</span>
+							</a>
+						))}
+					</nav>
+				)
+			}
+		</div>
+	</div>
+</Base>

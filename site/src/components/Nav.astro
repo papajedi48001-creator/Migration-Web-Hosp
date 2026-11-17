@@ -1,0 +1,32 @@
+---
+// เมนูหลัก ใช้ทั้งจอใหญ่และมือถือ
+interface Props {
+	nav: { label: string; href?: string; items?: { label: string; href: string }[] }[];
+	current?: string;
+	class?: string;
+}
+const { nav, current, class: cls } = Astro.props;
+---
+
+<nav class:list={['nav', cls]} aria-label="เมนูหลัก">
+	{
+		nav.map((n) =>
+			n.items ? (
+				<details>
+					<summary>{n.label}</summary>
+					<div>
+						{n.items.map((i) => (
+							<a href={i.href} aria-current={i.href === current ? 'page' : undefined}>
+								{i.label}
+							</a>
+						))}
+					</div>
+				</details>
+			) : (
+				<a href={n.href} aria-current={n.href === current ? 'page' : undefined}>
+					{n.label}
+				</a>
+			),
+		)
+	}
+</nav>

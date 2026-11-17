@@ -75,12 +75,15 @@ const decode = (html = '') =>
 		.replace(/&lt;/g, '<')
 		.replace(/&gt;/g, '>')
 		.trim();
+// slug ที่หน้าเว็บใหม่ใช้เอง (ต้องตรงกับ RESERVED ใน site/src/lib/site.js)
+const RESERVED = new Set(['news', 'search', 'media', 'pagefind', '_astro', 'preview', 'pages', '404', 'legacy', 'wp-content', 'wp-admin', 'assets', 'admin', 'auth']);
 const asciiSlug = (slug) => {
 	let s = slug;
 	try {
 		s = decodeURIComponent(slug);
 	} catch {}
-	return /^[a-z0-9-]+$/i.test(s) && s.length <= 120 ? s.toLowerCase() : null; // slug ภาษาไทยใช้ id แทน
+	s = s.toLowerCase();
+	return /^[a-z0-9-]+$/.test(s) && s.length <= 120 && !RESERVED.has(s) ? s : null; // slug ภาษาไทยใช้ id แทน
 };
 const original = (url) => url.replace(/-\d+x\d+(\.[a-z0-9]+)$/i, '$1'); // รูปย่อของ WP -> รูปต้นฉบับ
 

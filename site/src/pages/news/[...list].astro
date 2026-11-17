@@ -1,0 +1,102 @@
+---
+// หน้ารวมข่าว: /news/, /news/page/2/, /news/category/<หมวด>/, /news/category/<หมวด>/page/2/
+import NewsCard from '../../components/NewsCard.astro';
+import Base from '../../layouts/Base.astro';
+import { CATEGORIES, getNews } from '../../lib/directus.js';
+import { PER_PAGE, card, catHref, pinnedFirst } from '../../lib/news.js';
+import { href } from '../../lib/site.js';
+
+export async function getStaticPaths() {
+	const news = await getNews();
+	const groups = [{ cat: null, list: news }, ...Object.keys(CATEGORIES).map((cat) => ({ cat, list: news.filter((n) => n.category === cat) }))];
+	return groups.flatMap(({ cat, list }) => {
+		const pages = Math.max(1, Math.ceil(list.length / PER_PAGE));
+		return Array.from({ length: pages }, (_, i) => {
+			const page = i + 1;
+			const parts = [cat && `category/${cat}`, page > 1 && `page/${page}`].filter(Boolean);
+			return { params: { list: parts.length ? parts.join('/') : undefined }, props: { cat, page, pages } };
+		});
+	});
+}
+
+const { cat, page, pages } = Astro.props;
+const all = await getNews();
+const list = cat ? all.filter((n) => n.category === cat) : all;
+// ปักหมุดแสดงบนสุดเฉพาะหน้าแรกของรายการ
+const ordered = pinnedFirst(list);
+const items = await Promise.all(ordered.slice((page - 1) * PER_PAGE, page * PER_PAGE).map((n) => card(n)));
+const label = cat ? CATEGORIES[cat] : 'ข่าวสารทั้งหมด';
+const title = page > 1 ? `${label} หน้า ${page}` : label;
+const cats = Object.entries(CATEGORIES).filter(([k]) => all.some((n) => n.category === k));
+
+// เลขหน้าแบบย่อ: 1 … 4 5 6 … 20
+const nums = [...new Set([1, page - 1, page, page + 1, pages])].filter((p) => p >= 1 && p <= pages).sort((a, b) => a - b);
+---
+
+<Base title={title} current={href('news/')}>
+	<div class="wrap page-main">
+		<nav class="crumbs" aria-label="ตำแหน่งหน้า">
+			<ol>
+				<li><a href={href('')}>หน้าแรก</a></li>
+				{
+					cat ? (
+						<>
+							<li>
+								<a href={href('news/')}>ข่าวสาร</a>
+							</li>
+							<li aria-current="page">{label}</li>
+						</>
+					) : (
+						<li aria-current="page">ข่าวสาร</li>
+					)
+				}
+			</ol>
+		</nav>
+		<h1 class="page-title">{label}</h1>
+		<nav class="pills" aria-label="หมวดข่าว">
+			<a class="pill" href={catHref(null)} aria-current={!cat ? 'page' : undefined}>ทั้งหมด</a>
+			{
+				cats.map(([k, v]) => (
+					<a class="pill" href={catHref(k)} aria-current={k === cat ? 'page' : undefined}>
+						{v}
+					</a>
+				))
+			}
+		</nav>
+		{
+			items.length ? (
+				<div class="cards">
+					{items.map((n) => (
+						<NewsCard n={n} />
+					))}
+				</div>
+			) : (
+				<p class="empty">ยังไม่มีข่าวในหมวดนี้</p>
+			)
+		}
+		{
+			pages > 1 && (
+				<nav class="pager" aria-label="เลขหน้า">
+					{page > 1 && (
+						<a href={catHref(cat, page - 1)} rel="prev">
+							← ก่อนหน้า
+						</a>
+					)}
+					{nums.map((p, i) => (
+						<>
+							{i > 0 && p - nums[i - 1] > 1 && <span aria-hidden="true">…</span>}
+							<a href={catHref(cat, p)} aria-current={p === page ? 'page' : undefined}>
+								{p}
+							</a>
+						</>
+					))}
+					{page < pages && (
+						<a href={catHref(cat, page + 1)} rel="next">
+							ถัดไป →
+						</a>
+					)}
+				</nav>
+			)
+		}
+	</div>
+</Base>

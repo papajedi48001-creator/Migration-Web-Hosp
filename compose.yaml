@@ -1,5 +1,6 @@
 # เว็บโรงพยาบาลใหม่: Directus (CMS) + PostgreSQL
-# หน้าเว็บสาธารณะ (Astro) เป็นไฟล์ static ที่ nginx บน host เสิร์ฟเอง ไม่อยู่ใน compose นี้
+# หน้าเว็บสาธารณะ (Astro) เป็นไฟล์ static ที่ nginx บน host เสิร์ฟเอง
+# site-builder ใช้สร้างไฟล์เหล่านั้น (scripts/build-site.sh เรียกใช้ ไม่ได้รันค้างไว้)
 #
 #   cp .env.example .env && ./scripts/gen-secrets.sh   # ครั้งแรก
 #   docker compose up -d
@@ -55,7 +56,7 @@ services:
     cap_drop: [ALL]
     volumes:
       - uploads:/directus/uploads
-      - ./directus/extensions:/directus/extensions:ro
+      - ./directus/extensions:/directus/extensions:ro,z
     networks:
       - backend
       - egress
@@ -134,6 +135,31 @@ services:
       retries: 10
       start_period: 30s
 
+  # สร้างหน้าเว็บ static จาก Directus: ./scripts/build-site.sh (cron ทุก 1 นาที)
+  # อยู่ในเครือข่าย backend อย่างเดียว ออกอินเทอร์เน็ตไม่ได้ อ่าน Directus ด้วย token อ่านอย่างเดียว
+  site-builder:
+    image: node:22.23.4-bookworm-slim   # scripts/build-site.sh --install อ่านชื่อ image จากบรรทัดนี้
+    profiles: [build]
+    user: "1000:1000"
+    working_dir: /site
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:uid=1000,gid=1000
+    environment:
+      DIRECTUS_URL: http://directus:8055
+      DIRECTUS_READ_TOKEN: ${DIRECTUS_READ_TOKEN:-}
+      SITE_URL: ${SITE_URL:-https://waritch-hosp.moph.go.th}
+      ASTRO_TELEMETRY_DISABLED: "1"
+      HOME: /tmp
+    volumes:
+      - ./site:/site:z   # z: ให้ container อ่าน/เขียนได้เมื่อ SELinux เปิด
+      - site-node-modules:/site/node_modules
+    networks:
+      - backend
+
 networks:
   backend:
     internal: true          # db คุยได้กับ directus เท่านั้น ออกอินเทอร์เน็ตไม่ได้
@@ -142,3 +168,4 @@ networks:
 volumes:
   db-data:
   uploads:
+  site-node-modules:
