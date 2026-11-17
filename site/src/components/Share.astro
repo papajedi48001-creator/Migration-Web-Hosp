@@ -1,0 +1,31 @@
+---
+interface Props {
+	url: string;
+}
+const u = encodeURIComponent(Astro.props.url);
+---
+
+<div class="share" data-pagefind-ignore>
+	<span>แชร์:</span>
+	<a href={`https://www.facebook.com/sharer/sharer.php?u=${u}`} target="_blank" rel="noopener noreferrer">Facebook</a>
+	<a href={`https://social-plugins.line.me/lineit/share?url=${u}`} target="_blank" rel="noopener noreferrer">LINE</a>
+	<button type="button" data-copy={Astro.props.url} hidden>คัดลอกลิงก์</button>
+	<span role="status" aria-live="polite" data-copy-status></span>
+</div>
+
+<script>
+	for (const btn of document.querySelectorAll<HTMLButtonElement>('[data-copy]')) {
+		if (!navigator.clipboard) continue;
+		btn.hidden = false;
+		btn.addEventListener('click', async () => {
+			const status = btn.parentElement!.querySelector('[data-copy-status]')!;
+			try {
+				await navigator.clipboard.writeText(btn.dataset.copy!);
+				status.textContent = 'คัดลอกลิงก์แล้ว';
+			} catch {
+				status.textContent = 'คัดลอกไม่สำเร็จ';
+			}
+			setTimeout(() => (status.textContent = ''), 3000);
+		});
+	}
+</script>

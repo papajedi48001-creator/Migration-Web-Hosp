@@ -2,7 +2,7 @@
 # สำรองข้อมูลเว็บใหม่: ฐานข้อมูล PostgreSQL + ไฟล์อัปโหลด + .env
 #
 #   ./scripts/backup.sh            # สำรองทันที
-#   ใส่ cron (ทุกวัน 01:30):  30 1 * * * /srv/hospweb/scripts/backup.sh >> /var/log/hospweb-backup.log 2>&1
+#   ใส่ cron (ทุกวัน 01:30):  30 1 * * * /opt/hospweb/scripts/backup.sh >> /var/log/hospweb-backup.log 2>&1
 #
 # ผลลัพธ์: $BACKUP_DIR/daily/YYYYmmdd-HHMMSS/  (วันอาทิตย์คัดลอกไป weekly/ ด้วย)
 #   db.dump          pg_dump แบบ custom format (ใช้ pg_restore)

@@ -1,0 +1,50 @@
+---
+import Base from '../../layouts/Base.astro';
+import { href } from '../../lib/site.js';
+---
+
+<Base title="ค้นหา" noindex>
+	<Fragment slot="head">
+		<link rel="stylesheet" href={href('pagefind/pagefind-ui.css')} />
+	</Fragment>
+	<div class="wrap page-main">
+		<h1 class="page-title">ค้นหาข่าวและข้อมูล</h1>
+		<div id="search" class="search-box">
+			<noscript>การค้นหาต้องเปิดใช้ JavaScript ในเบราว์เซอร์</noscript>
+		</div>
+	</div>
+	<script is:inline src={href('pagefind/pagefind-ui.js')}></script>
+</Base>
+
+<script>
+	const ui = new (window as any).PagefindUI({
+		element: '#search',
+		showSubResults: false,
+		showImages: true,
+		resetStyles: false,
+		translations: {
+			placeholder: 'พิมพ์คำที่ต้องการค้นหา เช่น วัคซีน, จัดซื้อ',
+			zero_results: 'ไม่พบผลลัพธ์สำหรับ [SEARCH_TERM]',
+			many_results: 'พบ [COUNT] รายการสำหรับ [SEARCH_TERM]',
+			one_result: 'พบ 1 รายการสำหรับ [SEARCH_TERM]',
+			load_more: 'แสดงเพิ่ม',
+			clear_search: 'ล้าง',
+			filters_label: 'กรองตามหมวด',
+			search_label: 'ค้นหาในเว็บไซต์',
+		},
+	});
+	const q = new URLSearchParams(location.search).get('q');
+	if (q) ui.triggerSearch(q);
+</script>
+
+<style is:global>
+	.search-box {
+		--pagefind-ui-scale: 1;
+		--pagefind-ui-primary: #0e7c66;
+		--pagefind-ui-text: #1f2933;
+		--pagefind-ui-border: #c9d6d2;
+		--pagefind-ui-border-radius: 12px;
+		--pagefind-ui-font: 'Noto Sans Thai', system-ui, sans-serif;
+		max-width: 860px;
+	}
+</style>

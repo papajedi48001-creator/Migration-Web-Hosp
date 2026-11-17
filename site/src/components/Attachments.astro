@@ -1,0 +1,32 @@
+---
+// รายการไฟล์แนบ (PDF, Word, Excel)
+import { fileInfo } from '../lib/media.js';
+
+interface Props {
+	files: { id: string; title?: string; filename_download?: string; filesize?: number }[];
+}
+const files = (await Promise.all(Astro.props.files.map(fileInfo))).filter((f) => f.url);
+const COLORS = { PDF: '#B42318', DOC: '#1D4ED8', DOCX: '#1D4ED8', XLS: '#15803D', XLSX: '#15803D', PPT: '#C2410C', PPTX: '#C2410C' };
+const size = (b) => (!b ? '' : b >= 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
+---
+
+{
+	files.length > 0 && (
+		<section class="files" aria-labelledby="h-files">
+			<h2 id="h-files">ไฟล์แนบ</h2>
+			{files.map((f) => (
+				<a class="file" href={f.url} download={f.filename || true}>
+					<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={COLORS[f.ext] ?? '#52605C'} stroke-width="1.8" aria-hidden="true">
+						<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+						<path d="M14 2v6h6" />
+					</svg>
+					<span class="file-name">{f.title}</span>
+					<span class="file-meta">
+						{f.ext}
+						{f.size ? ` · ${size(f.size)}` : ''} · ดาวน์โหลด
+					</span>
+				</a>
+			))}
+		</section>
+	)
+}

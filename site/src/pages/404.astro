@@ -1,0 +1,23 @@
+---
+import Base from '../layouts/Base.astro';
+import { PREVIEW } from '../lib/directus.js';
+import { href } from '../lib/site.js';
+---
+
+<Base title="ไม่พบหน้าที่ต้องการ" noindex>
+	<div class="wrap page-main">
+		<h1 class="page-title">ไม่พบหน้าที่ต้องการ</h1>
+		{
+			PREVIEW ? (
+				<p>ถ้าเพิ่งบันทึกข่าวหรือหน้าเว็บ ระบบจะสร้างหน้าตัวอย่างให้ภายใน 1–2 นาที กรุณารอสักครู่แล้วกดรีเฟรช</p>
+			) : (
+				<p>หน้านี้อาจถูกย้ายหรือลบไปแล้ว ลองค้นหา หรือกลับไปที่หน้าแรก</p>
+			)
+		}
+		<p>
+			<a class="btn" href={href('')}>กลับหน้าแรก</a>
+			&nbsp;
+			<a href={href('search/')}>ค้นหาในเว็บไซต์</a>
+		</p>
+	</div>
+</Base>
