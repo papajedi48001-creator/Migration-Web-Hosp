@@ -170,11 +170,16 @@ cat migration/out/report.json      # ดูไฟล์ที่ดึงไม�
 - cron ทุกวัน 01:30 เก็บรายวัน 14 ชุด + รายสัปดาห์ (วันอาทิตย์) 8 ชุด
   `30 1 * * * /srv/hospweb/scripts/backup.sh >> /var/log/hospweb-backup.log 2>&1`
 - ส่งสำเนาไป **NAS 192.168.1.241** ด้วย rsync ผ่าน ssh (ตั้ง `BACKUP_OFFSITE` ใน `.env`)
-  1. บน NAS: เปิด SSH/rsync service, สร้าง user `hospweb-backup` และโฟลเดอร์ปลายทาง (เช่น `/volume1/backup/hospweb`) ให้ user นี้เขียนได้เฉพาะโฟลเดอร์นี้
-  2. บน .251 (user ที่รัน cron): `ssh-keygen -t ed25519 -f ~/.ssh/hospweb_backup -N ''` แล้ว `ssh-copy-id -i ~/.ssh/hospweb_backup hospweb-backup@192.168.1.241`
-  3. ใน `~/.ssh/config`: `Host 192.168.1.241` / `IdentityFile ~/.ssh/hospweb_backup`
-  4. ทดสอบ `./scripts/backup.sh` แล้วดูว่าไฟล์ขึ้นบน NAS
-  ถ้า NAS ใช้ snapshot ได้ (เช่น Synology Btrfs) เปิด snapshot รายวันของโฟลเดอร์นี้ด้วย กัน ransomware ที่ลามจาก .251 ไปลบ backup
+  1. บน Synology (DSM):
+     - Control Panel > File Services > rsync: ติ๊ก **Enable rsync service** (ใช้พอร์ต SSH 22)
+     - Control Panel > Terminal & SNMP: ติ๊ก **Enable SSH service**
+     - Control Panel > Shared Folder: สร้าง shared folder `backup` (ถ้ามีอยู่แล้วใช้ได้เลย) แล้วสร้างโฟลเดอร์ย่อย `hospweb`
+     - Control Panel > User: สร้าง user `hospweb-backup` (ไม่ใช่ administrators) ให้สิทธิ์ Read/Write เฉพาะ shared folder `backup` และในแท็บ Applications ให้ **Allow** เฉพาะ `rsync` นอกนั้น Deny
+     - Control Panel > User > Advanced: ติ๊ก **Enable user home service** (ต้องมี home เพื่อเก็บ `.ssh/authorized_keys`)
+  2. บน .251 (user ที่รัน cron): `ssh-keygen -t ed25519 -f ~/.ssh/hospweb_backup -N ''` แล้วคัดลอก public key ไปที่ `/var/services/homes/hospweb-backup/.ssh/authorized_keys` บน NAS (ใช้ File Station อัปโหลดก็ได้ สิทธิ์ `.ssh` 700, ไฟล์ 600)
+  3. ใน `~/.ssh/config` ของ .251: `Host 192.168.1.241` / `User hospweb-backup` / `IdentityFile ~/.ssh/hospweb_backup`
+  4. ตั้ง `BACKUP_OFFSITE=hospweb-backup@192.168.1.241:/volume1/backup/hospweb` แล้วทดสอบ `./scripts/backup.sh` ดูว่าไฟล์ขึ้นใน File Station
+  5. ติดตั้งแพ็กเกจ **Snapshot Replication** (ต้องเป็น volume Btrfs) ตั้ง snapshot รายวันของ shared folder `backup` เก็บ 30 วัน กัน ransomware ที่ลามจาก .251 มาลบ backup เพราะ user `hospweb-backup` ลบ snapshot ไม่ได้
 - ตั้ง `BACKUP_GPG_RECIPIENT` ถ้าจะเข้ารหัสชุดสำรองก่อนส่งออก
 - **ทดสอบกู้คืนเดือนละครั้ง** บนเครื่อง dev (ใช้ restore.sh กับชุดล่าสุดของ production)
 - หน้าเว็บสาธารณะไม่ต้อง backup แยก เพราะ build ใหม่จาก Directus ได้ทุกเมื่อ
@@ -243,4 +248,6 @@ cat migration/out/report.json      # ดูไฟล์ที่ดึงไม�
 4. SMTP มี ใส่ทีหลังได้ (ระหว่างนี้ admin01 รีเซ็ตรหัสให้คนอื่น)
 5. deploy บน **.251 เดิม** ปิด WordPress หลักตอน cut-over แต่เก็บไว้ rollback ได้ (หัวข้อ 10)
 
-ที่ยังต้องยืนยัน: admin02/03 เป็นผู้ดูแลระบบหรือประชาสัมพันธ์ (ตั้งต้นเป็นประชาสัมพันธ์), NAS ยี่ห้ออะไรและเปิด SSH/rsync ได้ไหม
+NAS เป็น Synology ตั้งค่าตามหัวข้อ 8
+
+ที่ยังต้องยืนยัน: admin02/03 เป็นผู้ดูแลระบบหรือประชาสัมพันธ์ (ตั้งต้นเป็นประชาสัมพันธ์)
