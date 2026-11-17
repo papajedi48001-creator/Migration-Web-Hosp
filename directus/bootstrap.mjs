@@ -217,6 +217,9 @@ const collections = [
 			{ field: 'facebook_url', type: 'string', meta: { interface: 'input', width: 'half', translations: th('Facebook') } },
 			{ field: 'line_url', type: 'string', meta: { interface: 'input', width: 'half', translations: th('LINE OA') } },
 			{ field: 'map_url', type: 'string', meta: { interface: 'input', width: 'full', translations: th('ลิงก์ Google Maps') } },
+			{ field: 'director_name', type: 'string', meta: { interface: 'input', width: 'half', translations: th('ชื่อผู้อำนวยการ'), note: 'แสดงข้างแบนเนอร์หน้าแรก' } },
+			{ field: 'director_title', type: 'string', schema: { default_value: 'ผู้อำนวยการโรงพยาบาลวาริชภูมิ' }, meta: { interface: 'input', width: 'half', translations: th('ตำแหน่ง') } },
+			imageField('director_photo', 'รูปผู้อำนวยการ', 'แนวตั้ง แนะนำ 600×800 px'),
 			{ field: 'announcement', type: 'text', meta: { interface: 'input-multiline', width: 'full', translations: th('ข้อความแจ้งเตือนด่วน (แถบบนสุดของเว็บ)'), note: 'เว้นว่างเมื่อไม่ต้องการแสดง' } },
 		],
 	},
@@ -268,7 +271,12 @@ async function ensureCollections() {
 	const have = new Set((await api('GET', '/collections')).map((c) => c.collection));
 	for (const c of collections) {
 		if (have.has(c.collection)) {
-			console.log(`= ${c.collection} มีอยู่แล้ว`);
+			// ตารางมีอยู่แล้ว: เพิ่มเฉพาะช่องใหม่ที่ยังไม่มี
+			const existing = new Set((await api('GET', `/fields/${c.collection}`)).map((f) => f.field));
+			for (const f of c.fields.filter((f) => !existing.has(f.field))) {
+				await api('POST', `/fields/${c.collection}`, f);
+				console.log(`+ ${c.collection}.${f.field}`);
+			}
 			continue;
 		}
 		const pk = c.meta.singleton
@@ -280,7 +288,7 @@ async function ensureCollections() {
 	const fields = new Set((await api('GET', '/fields')).map((f) => `${f.collection}.${f.field}`));
 	await ensureNewsAttachments(fields);
 	// ความสัมพันธ์รูปภาพ -> directus_files
-	for (const [col, field] of [['news', 'cover'], ['banners', 'image']]) {
+	for (const [col, field] of [['news', 'cover'], ['banners', 'image'], ['site_settings', 'director_photo']]) {
 		const rels = await api('GET', `/relations/${col}`);
 		if (!rels.some((r) => r.field === field)) {
 			await api('POST', '/relations', { collection: col, field, related_collection: 'directus_files', schema: { on_delete: 'SET NULL' } });
