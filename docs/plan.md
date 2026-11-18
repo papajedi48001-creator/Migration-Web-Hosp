@@ -217,7 +217,10 @@ cat migration/out/report.json      # ดูไฟล์ที่ดึงไม�
      - Control Panel > Shared Folder: สร้าง shared folder `backup` (ถ้ามีอยู่แล้วใช้ได้เลย) แล้วสร้างโฟลเดอร์ย่อย `hospweb`
      - Control Panel > User: สร้าง user `hospweb-backup` (ไม่ใช่ administrators) ให้สิทธิ์ Read/Write เฉพาะ shared folder `backup` และในแท็บ Applications ให้ **Allow** เฉพาะ `rsync` นอกนั้น Deny
      - Control Panel > User > Advanced: ติ๊ก **Enable user home service** (ต้องมี home เพื่อเก็บ `.ssh/authorized_keys`)
+     - **อย่าติ๊ก "ห้ามเข้าใช้" ที่ shared folder `homes`** ให้ user นี้ (ปล่อยว่าง) ไม่งั้น sshd อ่าน `authorized_keys` ไม่ได้ จะถามรหัสผ่านแทน key (ตรวจด้วย `sudo synoacltool -get /volume1/homes` ต้องไม่มี `user:hospweb-backup:deny`)
   2. บน .251 (user ที่รัน cron): `ssh-keygen -t ed25519 -f ~/.ssh/hospweb_backup -N ''` แล้วคัดลอก public key ไปที่ `/var/services/homes/hospweb-backup/.ssh/authorized_keys` บน NAS (ใช้ File Station อัปโหลดก็ได้ สิทธิ์ `.ssh` 700, ไฟล์ 600)
+     ใส่ key ผ่าน ssh ด้วยบัญชี admin ของ DSM: `H=/var/services/homes/hospweb-backup; sudo mkdir -p $H/.ssh; echo '<public key>' | sudo tee $H/.ssh/authorized_keys; sudo chown -R hospweb-backup:users $H; sudo chmod 755 $H; sudo chmod 700 $H/.ssh; sudo chmod 600 $H/.ssh/authorized_keys` (setup-server.sh สร้าง key ให้แล้วที่ `/root/.ssh/hospweb_backup`)
+     ทดสอบ: `sudo ssh -o BatchMode=yes 192.168.1.241 true` ถ้าขึ้น `Permission denied, please try again.` แปลว่า key ผ่านแล้ว (Synology ไม่ให้ user นี้เปิด shell แต่ rsync ได้) ถ้าขึ้น `(publickey,password)` แปลว่า key ยังไม่ผ่าน
   3. ใน `~/.ssh/config` ของ .251: `Host 192.168.1.241` / `User hospweb-backup` / `IdentityFile ~/.ssh/hospweb_backup`
   4. ตั้ง `BACKUP_OFFSITE=hospweb-backup@192.168.1.241:/volume1/backup/hospweb` แล้วทดสอบ `./scripts/backup.sh` ดูว่าไฟล์ขึ้นใน File Station
   5. ติดตั้งแพ็กเกจ **Snapshot Replication** (ต้องเป็น volume Btrfs) ตั้ง snapshot รายวันของ shared folder `backup` เก็บ 30 วัน กัน ransomware ที่ลามจาก .251 มาลบ backup เพราะ user `hospweb-backup` ลบ snapshot ไม่ได้
