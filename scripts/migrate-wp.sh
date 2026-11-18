@@ -9,6 +9,7 @@
 #
 # จะถามอีเมล รหัสผ่าน และรหัส 2FA ของ admin (ไม่เก็บไว้ที่ไหน)
 # ค่าที่เปลี่ยนได้: WP_URL (ค่าเริ่ม SITE_URL ใน .env), WP_HOST_IP (IP ที่เว็บเดิมรับอยู่ ค่าเริ่ม 127.0.0.1)
+#   WP_INSECURE=1 ไม่ตรวจใบรับรองของเว็บเดิม (ใช้เมื่อ chain ไม่ครบ ปลอดภัยเพราะต่อเข้าเครื่องตัวเอง)
 # ผลลัพธ์: migration/out/report.json, redirects.map, redirects-p.map (ใช้ตอนสลับเว็บ)
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -27,8 +28,13 @@ docker image inspect "$IMAGE" > /dev/null 2>&1 || { echo "ไม่มี image 
 
 # เว็บเดิมเปิด REST API ไว้ไหม (ปลั๊กอินความปลอดภัยบางตัวปิด /wp-json)
 check() {
-	curl -sS -m 20 --noproxy '*' --resolve "$WP_HOST:$WP_PORT:$WP_HOST_IP" -o /dev/null -D - "$WP_URL/wp-json/wp/v2/$1?per_page=1" 2> /dev/null |
-		awk -v t="$1" 'NR==1{code=$2} tolower($1)=="x-wp-total:"{n=$2} END{gsub(/\r/,"",n); printf "  %-6s HTTP %s  %s รายการ\n", t, code, (n==""?"?":n); exit (code!=200)}'
+	local err; err=$(mktemp)
+	curl -sS -m 20 ${WP_INSECURE:+-k} --noproxy '*' --resolve "$WP_HOST:$WP_PORT:$WP_HOST_IP" -o /dev/null -D - "$WP_URL/wp-json/wp/v2/$1?per_page=1" 2> "$err" |
+		awk -v t="$1" 'NR==1{code=$2} tolower($1)=="x-wp-total:"{n=$2} END{gsub(/\r/,"",n); printf "  %-6s HTTP %s  %s รายการ\n", t, (code==""?"000":code), (n==""?"?":n); exit (code!=200)}'
+	local rc=$?
+	[[ -s $err ]] && sed 's/^/         /' "$err"
+	rm -f "$err"
+	return $rc
 }
 echo "ตรวจเว็บเดิม $WP_URL (ผ่าน $WP_HOST_IP)"
 ok=1
@@ -36,7 +42,9 @@ for t in posts pages; do check "$t" || ok=0; done
 if [[ $ok == 0 ]]; then
 	cat << EOF
 อ่าน /wp-json ของเว็บเดิมไม่ได้
-- ถ้าขึ้น HTTP 000: เว็บเดิมไม่ได้รับที่ $WP_HOST_IP ลองตั้ง WP_HOST_IP=192.168.1.251 หรือใบรับรองมีปัญหา
+- ถ้าขึ้น curl: (60) SSL certificate problem: ใบรับรองของเว็บเดิมไม่ได้แนบ intermediate (chain ไม่ครบ)
+  เราอ่านจากเครื่องตัวเองจึงข้ามการตรวจได้: sudo WP_INSECURE=1 ./scripts/migrate-wp.sh ...
+- ถ้าขึ้น HTTP 000 แบบอื่น: เว็บเดิมไม่ได้รับที่ $WP_HOST_IP ลองตั้ง WP_HOST_IP=192.168.1.251
 - ถ้าขึ้น 401/403: ปลั๊กอินความปลอดภัยใน WordPress ปิด REST API ไว้ ให้เปิดชั่วคราวระหว่างย้าย
 EOF
 	exit 1
