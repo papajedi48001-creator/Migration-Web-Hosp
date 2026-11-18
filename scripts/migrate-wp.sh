@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ย้ายข่าว หน้าเว็บ รูป และไฟล์แนบ จาก WordPress เดิม (บนเครื่องนี้) เข้า Directus
-# อ่านเว็บเดิมผ่าน /wp-json อย่างเดียว ไม่แก้อะไรบนเว็บเดิม รันซ้ำได้ (ข้ามรายการที่ย้ายแล้ว)
+# อ่านเว็บเดิมผ่าน REST API (index.php?rest_route=) อย่างเดียว ไม่แก้อะไรบนเว็บเดิม รันซ้ำได้ (ข้ามรายการที่ย้ายแล้ว)
 #
 #   sudo ./scripts/migrate-wp.sh --limit 20     # ลองก่อน 20 รายการ
 #   sudo ./scripts/migrate-wp.sh                # ทั้งหมด
@@ -26,10 +26,10 @@ DIRECTUS_URL="http://127.0.0.1:${DIRECTUS_PORT:-8055}"
 
 docker image inspect "$IMAGE" > /dev/null 2>&1 || { echo "ไม่มี image $IMAGE (รัน sudo ./scripts/build-site.sh --install ก่อน)"; exit 1; }
 
-# เว็บเดิมเปิด REST API ไว้ไหม (ปลั๊กอินความปลอดภัยบางตัวปิด /wp-json)
+# เว็บเดิมเปิด REST API ไว้ไหม (ปลั๊กอินความปลอดภัยบางตัวปิดไว้)
 check() {
 	local err; err=$(mktemp)
-	curl -sS -m 20 ${WP_INSECURE:+-k} --noproxy '*' --resolve "$WP_HOST:$WP_PORT:$WP_HOST_IP" -o /dev/null -D - "$WP_URL/wp-json/wp/v2/$1?per_page=1" 2> "$err" |
+	curl -sS -m 20 ${WP_INSECURE:+-k} --noproxy '*' --resolve "$WP_HOST:$WP_PORT:$WP_HOST_IP" -o /dev/null -D - "$WP_URL/index.php?rest_route=/wp/v2/$1&per_page=1" 2> "$err" |
 		awk -v t="$1" 'NR==1{code=$2} tolower($1)=="x-wp-total:"{n=$2} END{gsub(/\r/,"",n); printf "  %-6s HTTP %s  %s รายการ\n", t, (code==""?"000":code), (n==""?"?":n); exit (code!=200)}'
 	local rc=$?
 	[[ -s $err ]] && sed 's/^/         /' "$err"
@@ -41,7 +41,7 @@ ok=1
 for t in posts pages; do check "$t" || ok=0; done
 if [[ $ok == 0 ]]; then
 	cat << EOF
-อ่าน /wp-json ของเว็บเดิมไม่ได้
+อ่าน REST API ของเว็บเดิมไม่ได้
 - ถ้าขึ้น curl: (60) SSL certificate problem: ใบรับรองของเว็บเดิมไม่ได้แนบ intermediate (chain ไม่ครบ)
   เราอ่านจากเครื่องตัวเองจึงข้ามการตรวจได้: sudo WP_INSECURE=1 ./scripts/migrate-wp.sh ...
 - ถ้าขึ้น HTTP 000 แบบอื่น: เว็บเดิมไม่ได้รับที่ $WP_HOST_IP ลองตั้ง WP_HOST_IP=192.168.1.251
