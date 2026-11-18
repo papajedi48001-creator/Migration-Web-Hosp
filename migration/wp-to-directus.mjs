@@ -68,20 +68,36 @@ async function dx(method, path, body, isForm = false, retried = false) {
 	if (!res.ok) throw new Error(`${method} ${path} -> ${res.status} ${JSON.stringify(json.errors ?? json)}`);
 	return json.data;
 }
-async function wpAll(type, extra = {}) {
-	const items = [];
+// อ่านจาก WordPress ทีละหน้า ให้เริ่มย้ายได้ทันทีโดยไม่ต้องรออ่านครบทุกหน้า (เว็บเดิมตอบช้า)
+let pageInfo = '';
+async function wpGet(url) {
+	for (let attempt = 1; ; attempt++) {
+		try {
+			return await fetch(url, { signal: AbortSignal.timeout(180_000) });
+		} catch (err) {
+			if (attempt >= 3) throw err;
+			console.log(`\nอ่านเว็บเดิมไม่สำเร็จ (${err.name}) ลองใหม่ครั้งที่ ${attempt + 1}`);
+		}
+	}
+}
+async function* wpPages(type, extra = {}) {
+	let count = 0;
 	for (let page = 1; ; page++) {
-		const res = await fetch(wpApi(`/wp/v2/${type}`, { per_page: 100, page, orderby: 'id', order: 'asc', ...extra }));
+		const res = await wpGet(wpApi(`/wp/v2/${type}`, { per_page: 50, page, orderby: 'id', order: 'asc', ...extra }));
 		if (res.status === 400) break; // เกินหน้าสุดท้าย
 		if (!res.ok) throw new Error(`WP ${type} page ${page} -> ${res.status}`);
-		const batch = await res.json();
-		items.push(...batch);
+		const batch = (await res.json()).slice(0, LIMIT - count);
+		count += batch.length;
 		const total = Number(res.headers.get('x-wp-totalpages') ?? 1);
-		process.stdout.write(`\rอ่าน ${type} หน้า ${page}/${total}`);
-		if (page >= total || items.length >= LIMIT) break;
+		pageInfo = `หน้า ${page}/${total} ของ ${res.headers.get('x-wp-total') ?? '?'} รายการ`;
+		yield batch;
+		if (page >= total || count >= LIMIT) break;
 	}
-	process.stdout.write('\n');
-	return items.slice(0, LIMIT);
+}
+async function wpAll(type, extra = {}) {
+	const items = [];
+	for await (const batch of wpPages(type, extra)) items.push(...batch);
+	return items;
 }
 const decode = (html = '') =>
 	html
@@ -135,7 +151,7 @@ async function importMedia(url, failures) {
 		}
 		let res;
 		try {
-			res = await fetch(encodeURI(decodeURI(u)), { redirect: 'manual' });
+			res = await fetch(encodeURI(decodeURI(u)), { redirect: 'manual', signal: AbortSignal.timeout(300_000) });
 		} catch (err) {
 			reason = `ดาวน์โหลดไม่ได้: ${err.cause?.code ?? err.message}`;
 			continue;
@@ -224,7 +240,8 @@ if (ONLY !== 'pages') for (const c of await wpAll('categories')) catNames[c.id] 
 
 async function migrate(type, collection, toItem, filter = {}) {
 	const have = await existing(collection);
-	for (const p of await wpAll(type, filter)) {
+	for await (const batch of wpPages(type, filter))
+	for (const p of batch) {
 		if (have.has(p.id) && !UPDATE) {
 			report.skipped++;
 			addRedirect(collection, p, have.get(p.id));
@@ -251,7 +268,7 @@ async function migrate(type, collection, toItem, filter = {}) {
 		}
 		if (!have.has(p.id)) report[collection]++;
 		addRedirect(collection, p, saved);
-		process.stdout.write(`\r${collection}: ${report[collection]}${UPDATE ? ` (อัปเดต ${report.updated})` : ''}  `);
+		process.stdout.write(`\r${collection}: ใหม่ ${report[collection]}${UPDATE ? ` อัปเดต ${report.updated}` : ''} ข้าม ${report.skipped} (${pageInfo})  `);
 	}
 	process.stdout.write('\n');
 }
@@ -262,7 +279,7 @@ if (ONLY !== 'pages')
 		const category = CATEGORY_RULES.find(([re]) => re.test(names))?.[1] ?? 'pr';
 		let cover = null;
 		if (p.featured_media) {
-			const m = await fetch(wpApi(`/wp/v2/media/${p.featured_media}`)).then((r) => (r.ok ? r.json() : null));
+			const m = await wpGet(wpApi(`/wp/v2/media/${p.featured_media}`)).then((r) => (r.ok ? r.json() : null));
 			if (m?.source_url) cover = await importMedia(m.source_url, report.mediaFailures);
 		}
 		return {
