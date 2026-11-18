@@ -7,4 +7,4 @@
 - เริ่มต้นแบบทำเอง: `./scripts/gen-secrets.sh && docker compose up -d && node directus/bootstrap.mjs`
 - สำรอง/กู้คืน: `./scripts/backup.sh`, `./scripts/restore.sh <ชุดสำรอง>`
 - หน้าเว็บ: `sudo ./scripts/build-site.sh --install` ครั้งแรก แล้ว cron `./scripts/build-site.sh` ทุก 1 นาที (โค้ดอยู่ใน `site/`)
-- ย้ายเนื้อหาจาก WordPress: `node migration/wp-to-directus.mjs`
+- ย้ายเนื้อหาจาก WordPress: `sudo ./scripts/migrate-wp.sh` (ดู docs/plan.md หัวข้อ 7)

@@ -37,13 +37,26 @@ const UPLOAD_RE = /https?:\/\/[^"'\s)]+\/wp-content\/uploads\/[^"'\s)?#]+/gi;
 const ATTACH_EXT = /\.(pdf|docx?|xlsx?)$/i;
 
 // ---------- helpers ----------
-let token;
-async function dx(method, path, body, isForm = false) {
+let token, refreshToken;
+async function dx(method, path, body, isForm = false, retried = false) {
 	const res = await fetch(DX + path, {
 		method,
 		headers: { ...(isForm ? {} : { 'content-type': 'application/json' }), ...(token ? { authorization: `Bearer ${token}` } : {}) },
 		body: isForm ? body : body ? JSON.stringify(body) : undefined,
 	});
+	// token อายุ 15 นาที (ACCESS_TOKEN_TTL) แต่การย้ายทั้งเว็บใช้นานกว่านั้น: ต่ออายุด้วย refresh token แล้วลองใหม่
+	if (res.status === 401 && refreshToken && !retried) {
+		const r = await fetch(`${DX}/auth/refresh`, {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ refresh_token: refreshToken, mode: 'json' }),
+		});
+		const j = await r.json().catch(() => ({}));
+		if (!r.ok) throw new Error(`ต่ออายุ token ไม่ได้ -> ${r.status} ${JSON.stringify(j.errors ?? j)}`);
+		token = j.data.access_token;
+		refreshToken = j.data.refresh_token;
+		return dx(method, path, body, isForm, true);
+	}
 	const text = await res.text();
 	const json = text ? JSON.parse(text) : {};
 	if (!res.ok) throw new Error(`${method} ${path} -> ${res.status} ${JSON.stringify(json.errors ?? json)}`);
@@ -137,8 +150,9 @@ try {
 } catch {}
 
 if (!DRY) {
-	const login = await dx('POST', '/auth/login', { email: process.env.ADMIN_EMAIL, password: process.env.ADMIN_PASSWORD, ...(process.env.ADMIN_OTP ? { otp: process.env.ADMIN_OTP } : {}) });
+	const login = await dx('POST', '/auth/login', { email: process.env.ADMIN_EMAIL, password: process.env.ADMIN_PASSWORD, mode: 'json', ...(process.env.ADMIN_OTP ? { otp: process.env.ADMIN_OTP } : {}) });
 	token = login.access_token;
+	refreshToken = login.refresh_token;
 	const folders = await dx('GET', '/folders?filter[name][_eq]=wp-import&limit=1');
 	folderId = folders[0]?.id ?? (await dx('POST', '/folders', { name: 'wp-import' })).id;
 }
@@ -172,7 +186,18 @@ async function migrate(type, collection, toItem) {
 		}
 		const { html, attachments } = await rewriteContent(p.content?.rendered ?? '', report.mediaFailures);
 		const item = await toItem(p, html, attachments);
-		const saved = DRY ? { id: `dry-${p.id}`, slug: item.slug } : await dx('POST', `/items/${collection}`, item);
+		let saved;
+		if (DRY) saved = { id: `dry-${p.id}`, slug: item.slug };
+		else {
+			try {
+				saved = await dx('POST', `/items/${collection}`, item);
+			} catch (err) {
+				// slug ซ้ำกับรายการที่สร้างในหลังบ้านไว้แล้ว: ต่อท้ายด้วย id ของ WordPress
+				if (!item.slug || !/RECORD_NOT_UNIQUE/.test(err.message) || !/"slug"/.test(err.message)) throw err;
+				console.log(`\nslug "${item.slug}" ซ้ำ ใช้ "${item.slug}-${p.id}" แทน`);
+				saved = await dx('POST', `/items/${collection}`, { ...item, slug: `${item.slug}-${p.id}` });
+			}
+		}
 		report[collection]++;
 		addRedirect(collection, p, saved);
 		process.stdout.write(`\r${collection}: ${report[collection]}  `);

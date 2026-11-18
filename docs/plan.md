@@ -190,13 +190,15 @@ CPU: compiler ของ Astro และ Pagefind ต้องใช้ CPU ร�
 
 ทดสอบแล้วกับ WordPress 6.8 จำลอง: ข่าวภาษาไทย, หมวดจัดซื้อ, รูปในเนื้อหา, รูปหน้าปก, PDF แนบ, redirect ทั้งลิงก์ไทยและ `?p=` ผ่านใน nginx 1.20
 
-ขั้นตอน
+ขั้นตอน (บน .251 สคริปต์ถามอีเมล รหัสผ่าน และรหัส 2FA ของ admin ไม่เก็บไว้ที่ไหน)
 ```bash
-set -a; . ./.env; set +a
-WP_URL=https://waritch-hosp.moph.go.th ADMIN_OTP=xxxxxx node migration/wp-to-directus.mjs --limit 20   # ลองก่อน 20 ข่าว
-WP_URL=https://waritch-hosp.moph.go.th ADMIN_OTP=xxxxxx node migration/wp-to-directus.mjs              # ทั้งหมด
-cat migration/out/report.json      # ดูไฟล์ที่ดึงไม่ได้
+sudo ./scripts/migrate-wp.sh --limit 20   # ลองก่อน 20 ข่าว
+sudo ./scripts/migrate-wp.sh              # ทั้งหมด (รันซ้ำได้ ข้ามที่ย้ายแล้ว)
+cat migration/out/report.json             # ดูไฟล์ที่ดึงไม่ได้
 ```
+- อ่านเว็บเดิมที่เครื่องนี้เอง (`--resolve` ไป 127.0.0.1) ถ้าเว็บเดิมรับเฉพาะ IP ของเครื่อง ตั้ง `WP_HOST_IP=192.168.1.251`
+- ถ้าตรวจแล้วได้ 401/403 แปลว่าปลั๊กอินความปลอดภัยปิด REST API ให้เปิดชั่วคราว
+- token ของ Directus อายุ 15 นาที สคริปต์ต่ออายุเองระหว่างย้าย และถ้า slug ซ้ำกับหน้าที่สร้างไว้แล้วจะต่อท้ายด้วย id ของ WordPress
 ต้องตรวจด้วยตา: หน้าที่ทำด้วย page builder (Elementor ฯลฯ) อาจจัดหน้าเพี้ยน ให้ประชาสัมพันธ์ช่วยไล่ดูหน้าเว็บสำคัญ (คาดว่า 10–20 หน้า)
 
 ไม่ย้าย: ITA67 และ WordPress อื่นที่อยู่ใน subfolder ยังเป็นเว็บเดิม (ทำเฟสถัดไป), ความเห็น, ผู้ใช้ WP
