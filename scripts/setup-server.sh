@@ -102,7 +102,11 @@ done
 set -a; source ./.env; set +a
 
 # ดึง image (ถ้าดึงไม่ได้ เช่นโดน Docker Hub จำกัดจำนวนครั้ง แต่มี image ในเครื่องแล้ว ก็ใช้ต่อได้)
-docker compose --profile build pull -q || warn "ดึง image ใหม่ไม่ได้ ใช้ image ที่มีในเครื่อง"
+docker compose --profile build pull -q --ignore-buildable || warn "ดึง image ใหม่ไม่ได้ ใช้ image ที่มีในเครื่อง"
+# image ของตัว build หน้าเว็บสร้างในเครื่อง (node + qemu สำหรับ CPU ที่ไม่มี AVX2 ดู site/build.sh)
+docker compose --profile build build -q site-builder ||
+	docker image inspect "$(awk '/^  site-builder:/{f=1} f&&/image:/{print $2; exit}' compose.yaml)" > /dev/null 2>&1 ||
+	die "สร้าง image site-builder ไม่ได้ (ต้องออกอินเทอร์เน็ตได้ ถ้าผ่าน proxy ให้ตั้ง HTTP_PROXY)"
 
 # วง IP ของ Docker ต้องไม่ทับเส้นทางอื่นของเครื่อง (ไม่งั้นเครื่องในวงนั้นจะติดต่อ .251 ไม่ได้)
 NET_BACKEND=${HOSPWEB_NET_BACKEND:-10.250.230.0/24}

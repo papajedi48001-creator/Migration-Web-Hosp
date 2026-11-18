@@ -138,7 +138,11 @@ services:
   # สร้างหน้าเว็บ static จาก Directus: ./scripts/build-site.sh (cron ทุก 1 นาที)
   # อยู่ในเครือข่าย backend อย่างเดียว ออกอินเทอร์เน็ตไม่ได้ อ่าน Directus ด้วย token อ่านอย่างเดียว
   site-builder:
-    image: node:22.23.4-bookworm-slim   # scripts/build-site.sh --install อ่านชื่อ image จากบรรทัดนี้
+    image: hospweb-site-builder:22.23.4   # สร้างจาก site/builder/Dockerfile (scripts/build-site.sh --install)
+    build:
+      context: ./site/builder
+      args:
+        http_proxy: ${HTTP_PROXY:-}   # ถ้าเครื่องออกเน็ตผ่าน proxy
     profiles: [build]
     user: "1000:1000"
     working_dir: /site
