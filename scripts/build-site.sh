@@ -33,6 +33,8 @@ if [[ $MODE == --install ]]; then
 	[[ -d site/dist ]] && chown -R $BUILDER_UID:$BUILDER_UID site/dist
 	docker volume inspect "${COMPOSE_PROJECT_NAME:-hospweb}_site-node-modules" > /dev/null 2>&1 ||
 		docker volume create --label com.docker.compose.project="${COMPOSE_PROJECT_NAME:-hospweb}" --label com.docker.compose.volume=site-node-modules "${COMPOSE_PROJECT_NAME:-hospweb}_site-node-modules" > /dev/null
+	# image ของตัว build (node + qemu สำหรับ CPU ที่ไม่มี AVX2 ดู site/build.sh)
+	docker compose --profile build build -q site-builder
 	# ติดตั้งผ่านอินเทอร์เน็ต (ตัว builder จริงอยู่ในเครือข่ายปิด จึงใช้ container แยกขั้นนี้)
 	docker run --rm -v "$PWD/site:/site:z" -v "${COMPOSE_PROJECT_NAME:-hospweb}_site-node-modules":/site/node_modules -w /site \
 		-e HOME=/tmp -e npm_config_update_notifier=false \

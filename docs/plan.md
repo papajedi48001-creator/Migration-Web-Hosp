@@ -122,9 +122,11 @@ set -a; . ./.env; set +a
 node directus/bootstrap.mjs         # นำ DIRECTUS_READ_TOKEN ที่แสดง (ครั้งเดียว) ไปใส่ใน .env
 
 # หน้าเว็บ
-sudo ./scripts/build-site.sh --install   # ติดตั้ง package ของ site/ + สร้างโฟลเดอร์ /srv/hospweb
+sudo ./scripts/build-site.sh --install   # สร้าง image ตัว build + ติดตั้ง package ของ site/ + สร้างโฟลเดอร์ /srv/hospweb
 sudo ./scripts/build-site.sh --force     # build ครั้งแรก
 ```
+
+CPU: compiler ของ Astro และ Pagefind ต้องใช้ CPU ระดับ x86-64-v3 (AVX2, BMI2, FMA) ถ้า VM ไม่มี (เช่น Proxmox CPU type x86-64-v2-AES) `site/build.sh` จะรันผ่าน qemu ใน image ตัว build ให้อัตโนมัติ ช้ากว่าราว 5 เท่าแต่ได้ผลเหมือนกัน แก้ถาวรโดยตั้ง CPU type ของ VM เป็น `host` แล้ว reboot
 
 พัฒนาหน้าเว็บบนเครื่องตัวเอง: `cd site && cp .env.example .env` (ใส่ token) แล้ว `npm ci && npm run dev`
 
