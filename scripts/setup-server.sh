@@ -11,7 +11,7 @@
 #   2. สร้าง .env + รหัสลับ  เปิด Directus + PostgreSQL  ตั้งค่าหลังบ้าน (ภาษาไทย ตาราง สิทธิ์ 2FA)
 #   3. nginx: หลังบ้าน https://waritch-hosp.moph.go.th:8443 (LAN เท่านั้น) และ /preview/
 #      วาง snippet หน้าเว็บใหม่ไว้เฉย ๆ ยังไม่ include ใน waritch.conf  เว็บ WordPress เดิมจึงไม่เปลี่ยน
-#   4. firewalld เปิด 8443 เฉพาะ 192.168.0.0/16, SELinux ให้ nginx อ่าน /srv/hospweb ได้
+#   4. firewalld เปิด 8443 เฉพาะวง IP ใน ADMIN_LAN_CIDRS (ค่าเริ่ม 192.168.0.0/16 และ 172.18.0.0/16), SELinux ให้ nginx อ่าน /srv/hospweb ได้
 #   5. build หน้าเว็บครั้งแรก  cron: build ทุก 1 นาที, backup ทุกวัน 01:30
 #   6. กุญแจ ssh สำหรับส่ง backup ไป NAS 192.168.1.241 (แสดง public key ให้นำไปใส่ใน Synology)
 #
@@ -24,7 +24,6 @@ BK=/root/hospweb-setup-backup
 NGX=${NGX_DIR:-/etc/nginx}
 WARITCH=$NGX/conf.d/waritch.conf
 DATA=/srv/hospweb # อ่านจาก SITE_ROOT ใน .env อีกทีด้านล่าง
-LAN=192.168.0.0/16
 NAS=192.168.1.241
 CRON=/etc/cron.d/hospweb
 NGX_FILES=(conf.d/00-hospweb-maps.conf conf.d/hospweb-admin.conf snippets/hospweb-proxy.conf snippets/hospweb-headers.conf snippets/hospweb-public.conf)
@@ -34,7 +33,10 @@ warn() { printf '!! %s\n' "$*"; }
 die() { printf '!! %s\n' "$*"; exit 1; }
 [[ $EUID -eq 0 ]] || die "ต้องรันด้วย sudo"
 firewall_active() { systemctl is-active -q firewalld 2> /dev/null; }
-RICH="rule family=\"ipv4\" source address=\"$LAN\" port port=\"8443\" protocol=\"tcp\" accept"
+# วง IP ของเครื่องในโรงพยาบาลที่ให้เข้าหลังบ้านได้ (ตั้ง ADMIN_LAN_CIDRS ใน .env คั่นด้วยช่องว่าง)
+[[ -f .env ]] && ADMIN_LAN_CIDRS=$(sed -n 's/^ADMIN_LAN_CIDRS=//p' .env | tr -d '"')
+read -r -a LANS <<< "${ADMIN_LAN_CIDRS:-192.168.0.0/16 172.18.0.0/16}"
+rich() { echo "rule family=\"ipv4\" source address=\"$1\" port port=\"8443\" protocol=\"tcp\" accept"; }
 
 # ---------------------------------------------------------------- rollback
 if [[ ${1:-} == rollback ]]; then
@@ -44,7 +46,10 @@ if [[ ${1:-} == rollback ]]; then
 	done
 	grep -q 'hospweb-public.conf' "$WARITCH" 2> /dev/null && warn "waritch.conf ยัง include hospweb-public.conf อยู่ (ทำตอน cut-over) ใช้ขั้น rollback ของ cut-over ใน docs/plan.md ก่อน"
 	nginx -t && systemctl reload nginx
-	firewall_active && firewall-cmd -q --permanent --remove-rich-rule="$RICH" 2> /dev/null && firewall-cmd -q --reload || true
+	if firewall_active; then
+		firewall-cmd --permanent --list-rich-rules | grep 'port="8443"' | while read -r r; do firewall-cmd -q --permanent --remove-rich-rule="$r"; done
+		firewall-cmd -q --reload
+	fi
 	rm -f "$CRON"
 	docker compose stop || true
 	say "rollback เสร็จ  ข้อมูล (ฐานข้อมูล ไฟล์อัปโหลด .env $DATA) ยังอยู่ครบ รัน setup อีกครั้งเมื่อพร้อม"
@@ -91,13 +96,49 @@ SECRETS=$(./scripts/gen-secrets.sh)
 [[ -n $SECRETS ]] && { echo "$SECRETS" | grep -v 'รหัสผ่าน admin' || true; }
 set -a; source ./.env; set +a
 # ค่าที่เพิ่มใน .env.example หลังจากสร้าง .env ไปแล้ว
-for k in DIRECTUS_READ_TOKEN SITE_URL SITE_ROOT; do
+for k in DIRECTUS_READ_TOKEN SITE_URL SITE_ROOT ADMIN_LAN_CIDRS HOSPWEB_NET_BACKEND HOSPWEB_NET_EGRESS; do
 	grep -qE "^$k=" .env || grep -E "^$k=" .env.example >> .env
 done
 set -a; source ./.env; set +a
 
 # ดึง image (ถ้าดึงไม่ได้ เช่นโดน Docker Hub จำกัดจำนวนครั้ง แต่มี image ในเครื่องแล้ว ก็ใช้ต่อได้)
 docker compose --profile build pull -q || warn "ดึง image ใหม่ไม่ได้ ใช้ image ที่มีในเครื่อง"
+
+# วง IP ของ Docker ต้องไม่ทับเส้นทางอื่นของเครื่อง (ไม่งั้นเครื่องในวงนั้นจะติดต่อ .251 ไม่ได้)
+NET_BACKEND=${HOSPWEB_NET_BACKEND:-10.250.230.0/24}
+NET_EGRESS=${HOSPWEB_NET_EGRESS:-10.250.231.0/24}
+P=${COMPOSE_PROJECT_NAME:-hospweb}
+mine=$(docker network ls -q --filter "label=com.docker.compose.project=$P" | xargs -r -I{} echo br-{} | cut -c1-15 | paste -sd'|')
+clash=$(ip -4 route show | grep -vE "${mine:-^$}" | python3 -c '
+import ipaddress, sys
+want = [ipaddress.ip_network(n) for n in sys.argv[1:]]
+for line in sys.stdin:
+    dst = line.split()[0]
+    if dst == "default":
+        continue
+    try:
+        net = ipaddress.ip_network(dst, strict=False)
+    except ValueError:
+        continue
+    for w in want:
+        if net.overlaps(w):
+            print(f"{w} ทับกับ {line.strip()}")
+' "$NET_BACKEND" "$NET_EGRESS")
+[[ -z $clash ]] || die "วง IP ของ Docker ชนกับเครือข่ายที่มีอยู่: $clash  ตั้ง HOSPWEB_NET_BACKEND/HOSPWEB_NET_EGRESS ใน .env เป็นวงอื่น"
+for c in "${LANS[@]}"; do
+	python3 -c 'import ipaddress,sys; a=ipaddress.ip_network(sys.argv[1]); sys.exit(any(a.overlaps(ipaddress.ip_network(n)) for n in sys.argv[2:]))' "$c" "$NET_BACKEND" "$NET_EGRESS" ||
+		die "วง $c ใน ADMIN_LAN_CIDRS ทับกับวงของ Docker"
+done
+for n in backend egress; do # network เดิมที่วงไม่ตรงกับที่ตั้งไว้ ต้องสร้างใหม่ (ข้อมูลอยู่ใน volume ไม่หาย)
+	want=$([[ $n == backend ]] && echo "$NET_BACKEND" || echo "$NET_EGRESS")
+	have=$(docker network inspect -f '{{range .IPAM.Config}}{{.Subnet}}{{end}}' "${P}_$n" 2> /dev/null || true)
+	if [[ -n $have && $have != "$want" ]]; then
+		echo "network ${P}_$n ใช้วง $have ต้องเปลี่ยนเป็น $want: หยุด container ชั่วคราว"
+		docker compose down
+		break
+	fi
+done
+
 docker compose up -d
 echo -n "รอ Directus พร้อม"
 for i in $(seq 1 60); do
@@ -178,9 +219,17 @@ echo "nginx reload แล้ว"
 # ---------------------------------------------------------------- 5. firewall
 say "5. firewall"
 if firewall_active; then
-	firewall-cmd -q --permanent --query-rich-rule="$RICH" || firewall-cmd -q --permanent --add-rich-rule="$RICH"
+	# ลบกฎ 8443 เดิมที่ไม่อยู่ในรายการแล้ว แล้วเพิ่มตามรายการปัจจุบัน
+	firewall-cmd --permanent --list-rich-rules | grep 'port="8443"' | while read -r r; do
+		keep=0
+		for c in "${LANS[@]}"; do [[ $r == "$(rich "$c")" ]] && keep=1; done
+		[[ $keep == 1 ]] || firewall-cmd -q --permanent --remove-rich-rule="$r"
+	done
+	for c in "${LANS[@]}"; do
+		firewall-cmd -q --permanent --query-rich-rule="$(rich "$c")" || firewall-cmd -q --permanent --add-rich-rule="$(rich "$c")"
+	done
 	firewall-cmd -q --reload
-	echo "เปิดพอร์ต 8443 ให้ $LAN"
+	echo "เปิดพอร์ต 8443 ให้ ${LANS[*]}"
 	firewall-cmd --list-ports | grep -qw '8443/tcp' && warn "zone หลักเปิด 8443/tcp ให้ทุกคนอยู่ ควรปิด: firewall-cmd --permanent --remove-port=8443/tcp && firewall-cmd --reload"
 else
 	warn "firewalld ไม่ได้ทำงาน: router ต้องไม่ forward พอร์ต 8443 (nginx จำกัด IP ไว้อีกชั้นแล้ว)"
