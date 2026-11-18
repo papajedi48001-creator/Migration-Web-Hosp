@@ -160,10 +160,18 @@ services:
     networks:
       - backend
 
+# กำหนดวง IP เอง: ถ้าปล่อยให้ Docker เลือก อาจได้วงเดียวกับเครื่องในโรงพยาบาล (เช่น 172.18.x)
+# แล้ว .251 จะส่งคำตอบเข้า Docker แทนที่จะส่งกลับไปหาเครื่องนั้น
 networks:
   backend:
     internal: true          # db คุยได้กับ directus เท่านั้น ออกอินเทอร์เน็ตไม่ได้
-  egress: {}                # ให้ directus ส่งอีเมลได้ และให้ docker map พอร์ตเข้า host ได้
+    ipam:
+      config:
+        - subnet: ${HOSPWEB_NET_BACKEND:-10.250.230.0/24}
+  egress:                   # ให้ directus ส่งอีเมลได้ และให้ docker map พอร์ตเข้า host ได้
+    ipam:
+      config:
+        - subnet: ${HOSPWEB_NET_EGRESS:-10.250.231.0/24}
 
 volumes:
   db-data:
