@@ -106,26 +106,59 @@ const original = (url) => url.replace(/-\d+x\d+(\.[a-z0-9]+)$/i, '$1'); // ร�
 let mediaMap = {};
 const MEDIA_FILE = join(OUT, 'media-map.json');
 let folderId = null;
+// ชนิดไฟล์ดูจากนามสกุล (ต้องตรงกับ FILES_MIME_TYPE_ALLOW_LIST ใน compose.yaml)
+// ไม่เชื่อ Content-Type ที่เว็บเดิมส่งมา เพราะบางไฟล์ได้ application/octet-stream หรือหน้า HTML แทนไฟล์
+const MIME = {
+	jpg: 'image/jpeg', jpeg: 'image/jpeg', jpe: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml',
+	pdf: 'application/pdf', doc: 'application/msword', xls: 'application/vnd.ms-excel',
+	docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+	xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+};
 async function importMedia(url, failures) {
 	if (mediaMap[url]) return mediaMap[url];
 	if (DRY) return (mediaMap[url] = `dry-${Object.keys(mediaMap).length}`);
 	const candidates = original(url) !== url ? [original(url), url] : [url];
+	let reason = 'ดาวน์โหลดไม่ได้';
 	for (const u of candidates) {
 		if (mediaMap[u]) return (mediaMap[url] = mediaMap[u]);
-		const res = await fetch(encodeURI(decodeURI(u)));
-		if (!res.ok) continue;
-		const blob = await res.blob();
 		const name = decodeURIComponent(u.split('/').pop());
+		const type = MIME[name.split('.').pop().toLowerCase()];
+		if (!type) {
+			reason = 'ชนิดไฟล์ไม่อยู่ในรายการที่อนุญาต';
+			continue;
+		}
+		let res;
+		try {
+			res = await fetch(encodeURI(decodeURI(u)));
+		} catch (err) {
+			reason = `ดาวน์โหลดไม่ได้: ${err.cause?.code ?? err.message}`;
+			continue;
+		}
+		if (!res.ok) {
+			reason = `ดาวน์โหลดไม่ได้: HTTP ${res.status}`;
+			continue;
+		}
+		if (/^text\/html/i.test(res.headers.get('content-type') ?? '')) {
+			reason = 'เว็บเดิมส่งหน้า HTML มาแทนไฟล์';
+			continue;
+		}
+		const blob = new Blob([await res.arrayBuffer()], { type });
 		const form = new FormData();
 		if (folderId) form.append('folder', folderId);
 		form.append('title', name.replace(/\.[^.]+$/, ''));
 		form.append('file', blob, name);
-		const file = await dx('POST', '/files', form, true);
-		mediaMap[u] = mediaMap[url] = file.id;
-		await writeFile(MEDIA_FILE, JSON.stringify(mediaMap, null, 1));
-		return file.id;
+		try {
+			const file = await dx('POST', '/files', form, true);
+			mediaMap[u] = mediaMap[url] = file.id;
+			await writeFile(MEDIA_FILE, JSON.stringify(mediaMap, null, 1));
+			return file.id;
+		} catch (err) {
+			if (!/^POST \/files -> (400|413|415|422) /.test(err.message)) throw err; // Directus ล่ม/สิทธิ์หมด: หยุดดีกว่าข้ามทุกไฟล์
+			// ไฟล์เดียวมีปัญหา (ชนิดไม่ตรง ใหญ่เกิน ฯลฯ) ไม่ต้องหยุดทั้งงาน จดไว้ใน report แล้วไปต่อ
+			reason = `Directus ไม่รับไฟล์: ${err.message.slice(0, 300)}`;
+		}
 	}
-	failures.push(url);
+	failures.push({ url, reason });
 	return null;
 }
 async function rewriteContent(html, failures) {
