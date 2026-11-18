@@ -15,12 +15,13 @@ const UUID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 
 const inflight = new Map();
 
+// ข้อมูลไฟล์ทั้งหมดดึงครั้งเดียว (เว็บที่มีหลายพันไฟล์ ถ้าถามทีละไฟล์จะเป็นหลายพันคำขอ)
+let allFiles;
 async function fileMeta(id) {
-	try {
-		return await api(`/files/${id}?fields=id,type,filename_download,title,width,height,uploaded_on,modified_on`);
-	} catch {
-		return null; // ไฟล์ถูกลบไปแล้ว
-	}
+	allFiles ??= api('/files?limit=-1&fields=id,type,filename_download,title,width,height,uploaded_on,modified_on').then(
+		(rows) => new Map(rows.map((f) => [f.id, f])),
+	);
+	return (await allFiles).get(id) ?? null; // ไม่มี = ไฟล์ถูกลบไปแล้ว
 }
 
 const extOf = (name = '') => (name.match(/\.([a-z0-9]{1,5})$/i)?.[1] ?? 'bin').toLowerCase();
@@ -43,17 +44,36 @@ async function download(id, preset) {
 	const meta = await fileMeta(id);
 	if (!meta) return null;
 	const isRaster = meta.type?.startsWith('image/') && meta.type !== 'image/svg+xml' && meta.type !== 'image/gif';
-	const usePreset = preset && isRaster;
 	const ver = createHash('sha256').update(`${meta.uploaded_on}|${meta.modified_on}`).digest('hex').slice(0, 8);
-	const name = usePreset ? `${id}-${ver}-${preset}.webp` : `${id}-${ver}.${extOf(meta.filename_download)}`;
+	const original = `${id}-${ver}.${extOf(meta.filename_download)}`;
+	if (preset && isRaster) {
+		const name = `${id}-${ver}-${preset}.webp`;
+		if (await save(name, `/assets/${id}?key=${preset}`)) return name;
+		// ย่อรูปไม่ได้ (เช่น รูปใหญ่เกิน ASSETS_TRANSFORM_IMAGE_MAX_DIMENSION หรือไฟล์เสียจากเว็บเดิม): ใช้ไฟล์ต้นฉบับแทน
+		console.warn(`[media] ย่อรูป ${id} (${meta.filename_download}) ไม่ได้ ใช้ไฟล์ต้นฉบับแทน`);
+	}
+	if (await save(original, `/assets/${id}`)) return original;
+	console.warn(`[media] ดึงไฟล์ ${id} (${meta.filename_download}) ไม่ได้ ข้ามไฟล์นี้`);
+	return null;
+}
+
+// ดาวน์โหลดเก็บใน cache คืน false เมื่อ Directus ปฏิเสธไฟล์นี้ (4xx) ส่วนปัญหาอื่น (Directus ล่ม) ยังให้ build ล้ม
+const rejected = new Set();
+async function save(name, path) {
 	mkdirSync(CACHE_DIR, { recursive: true });
 	const dest = join(CACHE_DIR, name);
-	if (!existsSync(dest)) {
-		const res = await fetchRaw(`/assets/${id}${usePreset ? `?key=${preset}` : ''}`);
+	if (existsSync(dest)) return true;
+	if (rejected.has(path)) return false;
+	try {
+		const res = await fetchRaw(path);
 		writeFileSync(dest + '.part', Buffer.from(await res.arrayBuffer()));
 		renameSync(dest + '.part', dest); // build ที่ล้มกลางทางจะไม่ทิ้งไฟล์ครึ่ง ๆ ไว้
+		return true;
+	} catch (err) {
+		if (!/-> (400|404|415|422)$/.test(err.message)) throw err; // 401/403 = token มีปัญหา ต้องล้ม
+		rejected.add(path);
+		return false;
 	}
-	return name;
 }
 
 export async function fileInfo(file) {

@@ -7,13 +7,50 @@ const TOKEN = process.env.DIRECTUS_READ_TOKEN ?? '';
 export const PREVIEW = process.env.SITE_PREVIEW === '1';
 
 const cache = new Map();
+const headers = TOKEN ? { authorization: `Bearer ${TOKEN}` } : {};
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// จำกัดจำนวนคำขอพร้อมกัน และลองใหม่เมื่อ Directus ตอบ 429 (RATE_LIMITER ใน compose.yaml) หรือ 503 (แปลงรูปไม่ทัน)
+// เว็บที่มีข่าวหลายพันข่าว build ครั้งแรกต้องดึงรูปหลายพันรูป ถ้าไม่รอจะล้มทั้ง build
+const MAX_INFLIGHT = 6;
+let inflight = 0;
+const waiting = [];
+async function slot(fn) {
+	if (inflight >= MAX_INFLIGHT) await new Promise((r) => waiting.push(r));
+	inflight++;
+	try {
+		return await fn();
+	} finally {
+		inflight--;
+		waiting.shift()?.();
+	}
+}
+async function request(path) {
+	for (let attempt = 1; ; attempt++) {
+		let res;
+		try {
+			res = await slot(() => fetch(BASE + path, { headers, signal: AbortSignal.timeout(120_000) }));
+		} catch (err) {
+			if (attempt >= 5) throw new Error(`Directus ${path} -> ${err.cause?.code ?? err.name}`);
+			await sleep(1000 * attempt);
+			continue;
+		}
+		if ((res.status === 429 || res.status === 503) && attempt < 10) {
+			await res.body?.cancel();
+			const after = Number(res.headers.get('retry-after'));
+			await sleep(after > 0 ? after * 1000 : Math.min(500 * 2 ** attempt, 30_000));
+			continue;
+		}
+		return res;
+	}
+}
 
 export async function api(path) {
 	if (!cache.has(path)) {
 		cache.set(
 			path,
 			(async () => {
-				const res = await fetch(BASE + path, { headers: TOKEN ? { authorization: `Bearer ${TOKEN}` } : {} });
+				const res = await request(path);
 				if (!res.ok) throw new Error(`Directus ${path} -> ${res.status} ${await res.text()}`);
 				return (await res.json()).data;
 			})(),
@@ -23,7 +60,7 @@ export async function api(path) {
 }
 
 export async function fetchRaw(path) {
-	const res = await fetch(BASE + path, { headers: TOKEN ? { authorization: `Bearer ${TOKEN}` } : {} });
+	const res = await request(path);
 	if (!res.ok) throw new Error(`Directus ${path} -> ${res.status}`);
 	return res;
 }
