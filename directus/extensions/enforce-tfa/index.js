@@ -11,9 +11,12 @@ const ALLOW = [
 	{ method: 'POST', re: /^\/auth\/(logout|refresh)$/ },
 	{ method: 'PATCH', re: /^\/users\/me\/track\/page$/ },
 	// ข้อมูลระบบที่หน้า app โหลดตอนเริ่ม (ไม่มีเนื้อหาเว็บ)
-	{ method: 'GET', re: /^\/(server\/.*|users\/me|policies\/me\/globals|permissions\/me|settings|extensions.*|translations.*|collections.*|fields.*|relations.*|presets.*)$/ },
+	{ method: 'GET', re: /^\/(auth|license|notifications|server\/.*|users\/me|roles\/me|policies\/me\/globals|permissions\/me|settings|extensions.*|translations.*|collections.*|fields.*|relations.*|presets.*)$/ },
 	{ method: 'SEARCH', re: /^\/(translations|presets)$/ },
 ];
+
+// ข้อมูลที่หน้า app โหลดสำหรับ admin แต่ไม่จำเป็นต่อการตั้ง 2FA: ตอบเป็นรายการว่าง (ไม่ให้เห็น flow ฯลฯ ก่อนตั้ง 2FA)
+const EMPTY = /^\/(dashboards|panels|flows)$/;
 
 function readToken(req) {
 	const h = req.headers.authorization;
@@ -33,15 +36,23 @@ function payloadOf(token) {
 	}
 }
 
-export default ({ init }, { logger }) => {
+export default ({ init }, { logger, database }) => {
 	init('middlewares.after', ({ app }) => {
-		app.use((req, res, next) => {
+		app.use(async (req, res, next) => {
 			if (!req.accountability?.user) return next();
 			const token = readToken(req);
 			const payload = token ? payloadOf(token) : null;
 			if (!payload?.enforce_tfa) return next();
 			const path = req.path.replace(/\/+$/, '') || '/';
 			if (ALLOW.some((a) => a.method === req.method && a.re.test(path))) return next();
+			// token ยังมี claim เดิมจนกว่าจะ refresh: ถ้าเพิ่งตั้ง 2FA เสร็จ ให้ผ่าน
+			try {
+				const u = await database('directus_users').select('tfa_secret').where({ id: req.accountability.user }).first();
+				if (u?.tfa_secret) return next();
+			} catch (err) {
+				return next(err);
+			}
+			if (req.method === 'GET' && EMPTY.test(path)) return res.json({ data: [] });
 			logger.warn({ user: req.accountability.user, ip: req.accountability.ip, method: req.method, path }, 'enforce-tfa: blocked request before 2FA setup');
 			res.status(403).json({
 				errors: [{ message: 'ต้องตั้งค่า 2FA ก่อนใช้งาน (Two-factor authentication required)', extensions: { code: 'TFA_SETUP_REQUIRED' } }],
