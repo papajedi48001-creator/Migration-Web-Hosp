@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // ย้ายข่าว/หน้าเว็บ/ไฟล์จาก WordPress เดิม เข้า Directus ผ่าน REST API ทั้งสองฝั่ง
-// - ฝั่ง WordPress อ่านอย่างเดียวผ่าน /wp-json (ไม่ต้องเข้า DB และไม่แก้อะไรบนเว็บเดิม)
+// - ฝั่ง WordPress อ่านอย่างเดียวผ่าน REST API (ไม่ต้องเข้า DB และไม่แก้อะไรบนเว็บเดิม)
+//   ใช้รูป index.php?rest_route=... ซึ่งใช้ได้ทุกแบบ permalink (เว็บเดิมของ รพ. ไม่ได้เปิด pretty permalink ให้ /wp-json)
 // - รันซ้ำได้: ข้ามรายการที่ wp_id มีอยู่แล้ว และจำไฟล์ที่อัปโหลดแล้วใน migration/out/media-map.json
 //
 //   WP_URL=https://waritch-hosp.moph.go.th \
@@ -37,6 +38,7 @@ const UPLOAD_RE = /https?:\/\/[^"'\s)]+\/wp-content\/uploads\/[^"'\s)?#]+/gi;
 const ATTACH_EXT = /\.(pdf|docx?|xlsx?)$/i;
 
 // ---------- helpers ----------
+const wpApi = (route, params = {}) => `${WP}/index.php?${new URLSearchParams({ rest_route: route, ...params })}`;
 let token, refreshToken;
 async function dx(method, path, body, isForm = false, retried = false) {
 	const res = await fetch(DX + path, {
@@ -65,7 +67,7 @@ async function dx(method, path, body, isForm = false, retried = false) {
 async function wpAll(type) {
 	const items = [];
 	for (let page = 1; ; page++) {
-		const res = await fetch(`${WP}/wp-json/wp/v2/${type}?per_page=100&page=${page}&orderby=id&order=asc`);
+		const res = await fetch(wpApi(`/wp/v2/${type}`, { per_page: 100, page, orderby: 'id', order: 'asc' }));
 		if (res.status === 400) break; // เกินหน้าสุดท้าย
 		if (!res.ok) throw new Error(`WP ${type} page ${page} -> ${res.status}`);
 		const batch = await res.json();
@@ -211,7 +213,7 @@ if (ONLY !== 'pages')
 		const category = CATEGORY_RULES.find(([re]) => re.test(names))?.[1] ?? 'pr';
 		let cover = null;
 		if (p.featured_media) {
-			const m = await fetch(`${WP}/wp-json/wp/v2/media/${p.featured_media}`).then((r) => (r.ok ? r.json() : null));
+			const m = await fetch(wpApi(`/wp/v2/media/${p.featured_media}`)).then((r) => (r.ok ? r.json() : null));
 			if (m?.source_url) cover = await importMedia(m.source_url, report.mediaFailures);
 		}
 		return {
