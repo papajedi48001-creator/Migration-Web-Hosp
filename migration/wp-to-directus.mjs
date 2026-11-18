@@ -6,7 +6,7 @@
 //
 //   WP_URL=https://waritch-hosp.moph.go.th \
 //   DIRECTUS_URL=http://127.0.0.1:8055 ADMIN_EMAIL=... ADMIN_PASSWORD=... ADMIN_OTP=123456 \
-//   node migration/wp-to-directus.mjs [--limit 20] [--only posts|pages] [--dry-run]
+//   node migration/wp-to-directus.mjs [--limit 20] [--only posts|pages] [--dry-run] [--update] [--since 2020]
 //
 // ผลลัพธ์เพิ่มเติม: migration/out/redirects.map (ใส่ใน nginx ให้ลิงก์เดิมไม่เสีย), migration/out/report.json
 
@@ -25,6 +25,9 @@ const opt = (name) => {
 const LIMIT = Number(opt('limit') ?? Infinity);
 const ONLY = opt('only');
 const DRY = args.includes('--dry-run');
+const SINCE = opt('since'); // เช่น --since 2020 ย้ายเฉพาะข่าวตั้งแต่ 1 ม.ค. 2020
+if (SINCE && !/^\d{4}(-\d{2}-\d{2})?$/.test(SINCE)) throw new Error('--since ต้องเป็นปี ค.ศ. เช่น 2020 หรือวันที่ 2020-01-01');
+const UPDATE = args.includes('--update'); // ทำรายการที่ย้ายแล้วซ้ำ (เช่น หลังแก้การดึงรูป) แทนการข้าม
 if (!WP) throw new Error('ตั้งค่า WP_URL');
 
 // หมวด WordPress -> หมวดใน Directus (เทียบจากชื่อหมวด ปรับได้ตามเว็บจริง)
@@ -34,7 +37,8 @@ const CATEGORY_RULES = [
 	[/กิจกรรม|activity/i, 'activity'],
 	[/ความรู้|สุขภาพ|health/i, 'health'],
 ];
-const UPLOAD_RE = /https?:\/\/[^"'\s)]+\/wp-content\/uploads\/[^"'\s)?#]+/gi;
+// ลิงก์ไฟล์ในเนื้อหา ทั้งแบบเต็ม (https://.../wp-content/uploads/...) และแบบ /wp-content/uploads/...
+const UPLOAD_RE = /(?:https?:\/\/[^"'\s)]+)?\/wp-content\/uploads\/[^"'\s)?#<]+/gi;
 const ATTACH_EXT = /\.(pdf|docx?|xlsx?)$/i;
 
 // ---------- helpers ----------
@@ -64,10 +68,10 @@ async function dx(method, path, body, isForm = false, retried = false) {
 	if (!res.ok) throw new Error(`${method} ${path} -> ${res.status} ${JSON.stringify(json.errors ?? json)}`);
 	return json.data;
 }
-async function wpAll(type) {
+async function wpAll(type, extra = {}) {
 	const items = [];
 	for (let page = 1; ; page++) {
-		const res = await fetch(wpApi(`/wp/v2/${type}`, { per_page: 100, page, orderby: 'id', order: 'asc' }));
+		const res = await fetch(wpApi(`/wp/v2/${type}`, { per_page: 100, page, orderby: 'id', order: 'asc', ...extra }));
 		if (res.status === 400) break; // เกินหน้าสุดท้าย
 		if (!res.ok) throw new Error(`WP ${type} page ${page} -> ${res.status}`);
 		const batch = await res.json();
@@ -101,6 +105,8 @@ const asciiSlug = (slug) => {
 	return /^[a-z0-9-]+$/.test(s) && s.length <= 120 && !RESERVED.has(s) ? s : null; // slug ภาษาไทยใช้ id แทน
 };
 const original = (url) => url.replace(/-\d+x\d+(\.[a-z0-9]+)$/i, '$1'); // รูปย่อของ WP -> รูปต้นฉบับ
+// ข่าวเก่าบางข่าวลิงก์ผิดรูป เช่น https://host/2017/wp-content/uploads/... หรือโดเมนเก่า: ดึงจาก WP_URL/wp-content/uploads/... เสมอ
+const canonical = (url) => WP + url.slice(url.indexOf('/wp-content/uploads/'));
 
 // ---------- media ----------
 let mediaMap = {};
@@ -117,7 +123,7 @@ const MIME = {
 async function importMedia(url, failures) {
 	if (mediaMap[url]) return mediaMap[url];
 	if (DRY) return (mediaMap[url] = `dry-${Object.keys(mediaMap).length}`);
-	const candidates = original(url) !== url ? [original(url), url] : [url];
+	const candidates = [...new Set([canonical(original(url)), canonical(url)])];
 	let reason = 'ดาวน์โหลดไม่ได้';
 	for (const u of candidates) {
 		if (mediaMap[u]) return (mediaMap[url] = mediaMap[u]);
@@ -129,9 +135,13 @@ async function importMedia(url, failures) {
 		}
 		let res;
 		try {
-			res = await fetch(encodeURI(decodeURI(u)));
+			res = await fetch(encodeURI(decodeURI(u)), { redirect: 'manual' });
 		} catch (err) {
 			reason = `ดาวน์โหลดไม่ได้: ${err.cause?.code ?? err.message}`;
+			continue;
+		}
+		if (res.status >= 300 && res.status < 400) {
+			reason = `ไม่พบไฟล์ เว็บเดิม redirect ไป ${res.headers.get('location')}`;
 			continue;
 		}
 		if (!res.ok) {
@@ -139,7 +149,7 @@ async function importMedia(url, failures) {
 			continue;
 		}
 		if (/^text\/html/i.test(res.headers.get('content-type') ?? '')) {
-			reason = 'เว็บเดิมส่งหน้า HTML มาแทนไฟล์';
+			reason = `เว็บเดิมส่งหน้า HTML มาแทนไฟล์ (HTTP ${res.status})`;
 			continue;
 		}
 		const blob = new Blob([await res.arrayBuffer()], { type });
@@ -162,7 +172,8 @@ async function importMedia(url, failures) {
 	return null;
 }
 async function rewriteContent(html, failures) {
-	const urls = [...new Set(html.match(UPLOAD_RE) ?? [])];
+	// ยาวก่อน: แทนลิงก์เต็มก่อนแบบ /wp-content/... ที่เป็นส่วนหนึ่งของมัน
+	const urls = [...new Set(html.match(UPLOAD_RE) ?? [])].sort((a, b) => b.length - a.length);
 	const attachments = [];
 	for (const url of urls) {
 		const id = await importMedia(url, failures);
@@ -192,7 +203,7 @@ if (!DRY) {
 	folderId = folders[0]?.id ?? (await dx('POST', '/folders', { name: 'wp-import' })).id;
 }
 
-const report = { news: 0, pages: 0, skipped: 0, mediaFailures: [], redirects: 0 };
+const report = { news: 0, pages: 0, updated: 0, skipped: 0, mediaFailures: [], redirects: 0 };
 const redirects = [];
 const existing = async (col) =>
 	DRY ? new Map() : new Map((await dx('GET', `/items/${col}?fields=id,slug,wp_id&limit=-1&filter[wp_id][_nnull]=true`)).map((r) => [r.wp_id, r]));
@@ -211,10 +222,10 @@ function addRedirect(collection, p, saved) {
 const catNames = {};
 if (ONLY !== 'pages') for (const c of await wpAll('categories')) catNames[c.id] = decode(c.name);
 
-async function migrate(type, collection, toItem) {
+async function migrate(type, collection, toItem, filter = {}) {
 	const have = await existing(collection);
-	for (const p of await wpAll(type)) {
-		if (have.has(p.id)) {
+	for (const p of await wpAll(type, filter)) {
+		if (have.has(p.id) && !UPDATE) {
 			report.skipped++;
 			addRedirect(collection, p, have.get(p.id));
 			continue;
@@ -223,7 +234,12 @@ async function migrate(type, collection, toItem) {
 		const item = await toItem(p, html, attachments);
 		let saved;
 		if (DRY) saved = { id: `dry-${p.id}`, slug: item.slug };
-		else {
+		else if (have.has(p.id)) {
+			// อัปเดตเนื้อหาและไฟล์ แต่คง slug/สถานะที่อาจแก้ในหลังบ้านไปแล้ว
+			const { slug, status, ...rest } = item;
+			saved = await dx('PATCH', `/items/${collection}/${have.get(p.id).id}`, rest);
+			report.updated++;
+		} else {
 			try {
 				saved = await dx('POST', `/items/${collection}`, item);
 			} catch (err) {
@@ -233,9 +249,9 @@ async function migrate(type, collection, toItem) {
 				saved = await dx('POST', `/items/${collection}`, { ...item, slug: `${item.slug}-${p.id}` });
 			}
 		}
-		report[collection]++;
+		if (!have.has(p.id)) report[collection]++;
 		addRedirect(collection, p, saved);
-		process.stdout.write(`\r${collection}: ${report[collection]}  `);
+		process.stdout.write(`\r${collection}: ${report[collection]}${UPDATE ? ` (อัปเดต ${report.updated})` : ''}  `);
 	}
 	process.stdout.write('\n');
 }
@@ -262,7 +278,7 @@ if (ONLY !== 'pages')
 			wp_id: p.id,
 			legacy_url: p.link,
 		};
-	});
+	}, SINCE ? { after: `${SINCE.length === 4 ? `${SINCE}-01-01` : SINCE}T00:00:00` } : {});
 
 if (ONLY !== 'posts')
 	await migrate('pages', 'pages', async (p, html) => ({

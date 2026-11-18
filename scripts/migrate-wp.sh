@@ -6,6 +6,8 @@
 #   sudo ./scripts/migrate-wp.sh                # ทั้งหมด
 #   sudo ./scripts/migrate-wp.sh --only pages   # เฉพาะหน้าเว็บ (หรือ --only posts)
 #   sudo ./scripts/migrate-wp.sh --dry-run      # อ่านอย่างเดียว ไม่เขียน Directus
+#   sudo ./scripts/migrate-wp.sh --since 2020   # เฉพาะข่าวตั้งแต่ปี 2020 (หน้าเว็บย้ายทั้งหมด)
+#   sudo ./scripts/migrate-wp.sh --update       # ทำรายการที่ย้ายแล้วซ้ำ (ดึงรูปที่เคยพลาดใหม่ คง slug/สถานะในหลังบ้าน)
 #
 # จะถามอีเมล รหัสผ่าน และรหัส 2FA ของ admin (ไม่เก็บไว้ที่ไหน)
 # ค่าที่เปลี่ยนได้: WP_URL (ค่าเริ่ม SITE_URL ใน .env), WP_HOST_IP (IP ที่เว็บเดิมรับอยู่ ค่าเริ่ม 127.0.0.1)

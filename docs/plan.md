@@ -194,6 +194,8 @@ CPU: compiler ของ Astro และ Pagefind ต้องใช้ CPU ร�
 ```bash
 sudo ./scripts/migrate-wp.sh --limit 20   # ลองก่อน 20 ข่าว
 sudo ./scripts/migrate-wp.sh              # ทั้งหมด (รันซ้ำได้ ข้ามที่ย้ายแล้ว)
+sudo ./scripts/migrate-wp.sh --since 2020 # เฉพาะข่าวตั้งแต่ปี 2020
+sudo ./scripts/migrate-wp.sh --update     # ทำรายการที่ย้ายแล้วซ้ำ เช่น หลังแก้การดึงรูป
 cat migration/out/report.json             # ดูไฟล์ที่ดึงไม่ได้
 ```
 - อ่านเว็บเดิมที่เครื่องนี้เอง (`--resolve` ไป 127.0.0.1) ถ้าเว็บเดิมรับเฉพาะ IP ของเครื่อง ตั้ง `WP_HOST_IP=192.168.1.251`
