@@ -66,68 +66,86 @@ const phoneHref = telHref(settings.phone);
 ---
 
 <Base current={href('')}>
-	<section class="hero" aria-label="แบนเนอร์">
-		<div class="wrap">
-			<div class="slider" data-slider>
-				<div class="slides">
-					{
-						slides.length ? (
-							slides.map((s, i) => (
-								<div class:list={['slide', { on: i === 0 }]} aria-hidden={i === 0 ? undefined : 'true'}>
-									{s.link ? (
-										<a href={s.link}>
-											<img src={s.img} alt={s.title} width="1920" height="640" fetchpriority={i === 0 ? 'high' : undefined} loading={i === 0 ? 'eager' : 'lazy'} />
-										</a>
-									) : (
-										<img src={s.img} alt={s.title} width="1920" height="640" fetchpriority={i === 0 ? 'high' : undefined} loading={i === 0 ? 'eager' : 'lazy'} />
-									)}
-								</div>
-							))
-						) : (
-							<div class="slide on hero-empty">
-								<div class="slide-text">
-									<h1>{name}</h1>
-									<span>ห้องฉุกเฉินเปิดบริการตลอด 24 ชั่วโมง</span>
-								</div>
-							</div>
-						)
-					}
-				</div>
+	<section class="hero" aria-labelledby="h-hero">
+		<div class="wrap hero-grid">
+			<div class="hero-main">
+				<h1 id="h-hero">{name}</h1>
+				<p class="hero-lede">ห้องฉุกเฉินเปิดตลอด 24 ชั่วโมง</p>
 				{
-					slides.length > 1 && (
-						<div class="dots" role="group" aria-label="เลือกแบนเนอร์">
-							{slides.map((s, i) => (
-								<button type="button" aria-label={`แบนเนอร์ที่ ${i + 1}: ${s.title}`} aria-current={i === 0 ? 'true' : 'false'} />
-							))}
+					settings.opening_hours && (
+						<div class="hero-hours">
+							<h2>เวลาทำการ</h2>
+							<p>{plain(settings.opening_hours)}</p>
 						</div>
 					)
 				}
+				<div class="hero-actions">
+					{
+						phoneHref && (
+							<a class="btn btn-light" href={phoneHref}>
+								<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+									<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z" />
+								</svg>
+								โทร {settings.phone}
+							</a>
+						)
+					}
+					<a class="btn btn-ghost" href={mapUrl && !mapEmbed ? mapUrl : '#contact'} {...(mapUrl && !mapEmbed ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
+						เส้นทางมาโรงพยาบาล
+					</a>
+				</div>
 			</div>
 			{
-				(settings.director_name || directorPhoto) && (
-					<figure class="director">
-						{directorPhoto ? <img src={directorPhoto} alt={settings.director_name ?? ''} width="300" height="340" /> : <div class="ph" aria-hidden="true" />}
-						<figcaption>
-							{settings.director_name && <span class="director-name">{settings.director_name}</span>}
-							<span class="director-title">{settings.director_title || `ผู้อำนวยการ${name}`}</span>
-						</figcaption>
-					</figure>
+				(slides.length > 0 || settings.director_name || directorPhoto) && (
+					<div class="hero-side">
+						{slides.length > 0 && (
+							<div class="slider" data-slider aria-label="แบนเนอร์" role="region">
+								<div class="slides">
+									{slides.map((s, i) => (
+										<div class:list={['slide', { on: i === 0 }]} aria-hidden={i === 0 ? undefined : 'true'}>
+											{s.link ? (
+												<a href={s.link}>
+													<img src={s.img} alt={s.title} width="1920" height="640" fetchpriority={i === 0 ? 'high' : undefined} loading={i === 0 ? 'eager' : 'lazy'} />
+												</a>
+											) : (
+												<img src={s.img} alt={s.title} width="1920" height="640" fetchpriority={i === 0 ? 'high' : undefined} loading={i === 0 ? 'eager' : 'lazy'} />
+											)}
+										</div>
+									))}
+								</div>
+								{slides.length > 1 && (
+									<div class="dots" role="group" aria-label="เลือกแบนเนอร์">
+										{slides.map((s, i) => (
+											<button type="button" aria-label={`แบนเนอร์ที่ ${i + 1}: ${s.title}`} aria-current={i === 0 ? 'true' : 'false'} />
+										))}
+									</div>
+								)}
+							</div>
+						)}
+						{(settings.director_name || directorPhoto) && (
+							<figure class="director">
+								{directorPhoto ? <img src={directorPhoto} alt={settings.director_name ?? ''} width="120" height="144" /> : <div class="ph" aria-hidden="true" />}
+								<figcaption>
+									{settings.director_name && <span class="director-name">{settings.director_name}</span>}
+									<span class="director-title">{settings.director_title || `ผู้อำนวยการ${name}`}</span>
+								</figcaption>
+							</figure>
+						)}
+					</div>
 				)
 			}
 		</div>
+		<div class="ikat" aria-hidden="true"></div>
 	</section>
-	{slides.length > 0 && <h1 class="sr-only">{name}</h1>}
 
 	{
 		tiles.length > 0 && (
 			<section class="wrap section" aria-labelledby="h-services">
-				<h2 id="h-services" style="margin-bottom:20px">
-					บริการสำหรับผู้ป่วย
-				</h2>
+				<h2 id="h-services">บริการสำหรับผู้ป่วย</h2>
 				<div class="tiles">
 					{tiles.map((t) => (
 						<a class="tile" href={t.href} {...(t.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
-							<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#0E7C66" stroke-width="1.8" aria-hidden="true" set:html={t.icon} />
+							<span class="tile-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true" set:html={t.icon} /></span>
 							<span>{t.label}</span>
 						</a>
 					))}
@@ -139,7 +157,7 @@ const phoneHref = telHref(settings.phone);
 	<section class="wrap section" aria-labelledby="h-news">
 		<div class="section-head">
 			<h2 id="h-news">ข่าวสาร</h2>
-			<a class="more" href={href('news/')}>ดูข่าวทั้งหมด →</a>
+			<a class="more" href={href('news/')}>ดูข่าวทั้งหมด</a>
 		</div>
 		{
 			panels.length > 1 && (
@@ -163,7 +181,6 @@ const phoneHref = telHref(settings.phone);
 									{p.lead.draft && <span class="badge badge-pin">ฉบับร่าง</span>}
 									{p.lead.pinned && <span class="badge badge-pin">ปักหมุด</span>}
 									<span>{p.lead.cat}</span>
-									{p.lead.date && <span aria-hidden="true">·</span>}
 									{p.lead.date && <time datetime={p.lead.iso}>{p.lead.date}</time>}
 								</span>
 								<h3>{p.lead.title}</h3>
@@ -196,7 +213,7 @@ const phoneHref = telHref(settings.phone);
 				<div class="wrap">
 					<div class="section-head">
 						<h2 id="h-procurement">ประกาศจัดซื้อจัดจ้าง</h2>
-						<a class="more" href={catHref('procurement')}>ดูทั้งหมด →</a>
+						<a class="more" href={catHref('procurement')}>ดูประกาศทั้งหมด</a>
 					</div>
 					<ul class="doc-list">
 						{procurement.map((n) => (
@@ -220,7 +237,7 @@ const phoneHref = telHref(settings.phone);
 		)
 	}
 
-	<section class="wrap section" id="contact" aria-labelledby="h-contact" style="padding-bottom:56px">
+	<section class="wrap section" id="contact" aria-labelledby="h-contact">
 		<div class="contact">
 			<div class="contact-info">
 				<h2 id="h-contact">ติดต่อโรงพยาบาล</h2>

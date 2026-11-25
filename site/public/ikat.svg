@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="24" viewBox="0 0 48 24" shape-rendering="crispEdges">
+  <!-- ลายมัดหมี่ขั้นบันได (ผ้าย้อมครามสกลนคร) ใช้เป็นแถบลายใต้ส่วนหัวหน้าแรก -->
+  <rect width="48" height="24" fill="#1E2B63"/>
+  <g fill="#3B4C94">
+    <rect x="-4" y="0" width="8" height="4"/><rect x="44" y="0" width="8" height="4"/>
+    <rect x="-8" y="4" width="16" height="4"/><rect x="40" y="4" width="16" height="4"/>
+    <rect x="-12" y="8" width="24" height="8"/><rect x="36" y="8" width="24" height="8"/>
+    <rect x="-8" y="16" width="16" height="4"/><rect x="40" y="16" width="16" height="4"/>
+    <rect x="-4" y="20" width="8" height="4"/><rect x="44" y="20" width="8" height="4"/>
+  </g>
+  <g fill="#F4F5FA">
+    <rect x="20" y="0" width="8" height="4"/>
+    <rect x="16" y="4" width="16" height="4"/>
+    <rect x="12" y="8" width="24" height="8"/>
+    <rect x="16" y="16" width="16" height="4"/>
+    <rect x="20" y="20" width="8" height="4"/>
+  </g>
+  <rect x="20" y="8" width="8" height="8" fill="#1E2B63"/>
+  <rect x="22" y="10" width="4" height="4" fill="#E3A21A"/>
+</svg>

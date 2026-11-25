@@ -1,8 +1,8 @@
 ---
-import '@fontsource/noto-sans-thai/400.css';
-import '@fontsource/noto-sans-thai/600.css';
-import '@fontsource/ibm-plex-sans-thai/600.css';
-import '@fontsource/ibm-plex-sans-thai/700.css';
+import '@fontsource/noto-sans-thai-looped/400.css';
+import '@fontsource/noto-sans-thai-looped/600.css';
+import '@fontsource/anuphan/600.css';
+import '@fontsource/anuphan/700.css';
 import '../styles/global.css';
 import Nav from '../components/Nav.astro';
 import { PREVIEW } from '../lib/directus.js';
@@ -47,13 +47,13 @@ const footerLinks = nav.filter((n) => n.href && n.href !== href(''));
 		<meta property="og:locale" content="th_TH" />
 		{ogImage && <meta property="og:image" content={ogImage} />}
 		<meta name="twitter:card" content={ogImage ? 'summary_large_image' : 'summary'} />
-		<meta name="theme-color" content="#0E7C66" />
+		<meta name="theme-color" content="#1E2B63" />
 		<link rel="icon" href={href('favicon.svg')} type="image/svg+xml" />
 		<slot name="head" />
 	</head>
 	<body>
 		<a class="skip" href="#main">ข้ามไปเนื้อหา</a>
-		{PREVIEW && <div class="preview-bar" data-pagefind-ignore>ตัวอย่างเว็บสำหรับเจ้าหน้าที่ แสดงฉบับร่างด้วย (หน้าเว็บจริงจะไม่แสดงฉบับร่าง) · อัปเดตอัตโนมัติภายใน 1 นาทีหลังบันทึก</div>}
+		{PREVIEW && <div class="preview-bar" data-pagefind-ignore>ตัวอย่างเว็บสำหรับเจ้าหน้าที่ แสดงฉบับร่างด้วย (หน้าเว็บจริงจะไม่แสดงฉบับร่าง) อัปเดตอัตโนมัติภายใน 1 นาทีหลังบันทึก</div>}
 		{
 			announcement && (
 				<div class="alert" role="note" data-pagefind-ignore>
@@ -72,11 +72,11 @@ const footerLinks = nav.filter((n) => n.href && n.href !== href(''));
 			<div class="wrap">
 				<a class="brand" href={href('')}>
 					<span class="brand-mark">
-						<svg width="28" height="28" viewBox="0 0 24 24" fill="#FFFFFF" aria-hidden="true"><path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z"></path></svg>
+						<svg width="26" height="26" viewBox="0 0 24 24" fill="#FFFFFF" aria-hidden="true"><path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z"></path></svg>
 					</span>
 					<span class="brand-text">
 						<span class="brand-name">{name}</span>
-						<span class="brand-sub">Waritchaphum Hospital · จังหวัดสกลนคร</span>
+						<span class="brand-sub">Waritchaphum Hospital จังหวัดสกลนคร</span>
 					</span>
 				</a>
 				<Nav nav={nav} current={current} class="nav-desktop" />
@@ -113,10 +113,11 @@ const footerLinks = nav.filter((n) => n.href && n.href !== href(''));
 					<span>
 						{settings.phone && phoneHref && (
 							<>
-								โทร <a href={phoneHref}>{settings.phone}</a> ·{' '}
+								โทร <a href={phoneHref}>{settings.phone}</a>
+								<br />
 							</>
 						)}
-						ฉุกเฉิน <a href={telHref(emergency)}>{emergency}</a>
+						ฉุกเฉิน <a href={telHref(emergency)}>{emergency}</a> ตลอด 24 ชั่วโมง
 					</span>
 				</div>
 				<nav aria-label="ลิงก์ท้ายเว็บ">
