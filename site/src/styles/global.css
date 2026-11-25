@@ -123,17 +123,25 @@ h3,
 
 /* หัวเว็บ */
 .site-header {
+	/* ตรึงไว้ด้านบนตอนเลื่อน ให้เห็นชื่อโรงพยาบาลและปุ่มฉุกเฉินตลอด */
+	position: sticky;
+	top: 0;
+	z-index: 30;
 	background: #fff;
 	border-bottom: 1px solid var(--line);
+	box-shadow: 0 2px 10px rgb(20 29 69 / 8%);
 }
 .site-header > .wrap {
 	display: flex;
-	flex-wrap: wrap;
 	align-items: center;
 	justify-content: space-between;
 	gap: 16px;
-	padding-top: 14px;
-	padding-bottom: 14px;
+	padding-top: 12px;
+	padding-bottom: 12px;
+}
+/* ลิงก์ในหน้า (#contact) ไม่ให้หัวเว็บที่ตรึงไว้บัง */
+html {
+	scroll-padding-top: 96px;
 }
 .brand {
 	display: flex;
@@ -269,11 +277,22 @@ h3,
 .menu-toggle {
 	display: none;
 }
-@media (max-width: 960px) {
+@media (max-width: 1180px) {
 	.menu-toggle {
 		display: block;
-		width: 100%;
 		order: 3;
+	}
+	.menu-toggle > .menu-panel {
+		position: absolute;
+		top: 100%;
+		left: 0;
+		right: 0;
+		max-height: calc(100vh - 80px);
+		overflow-y: auto;
+		background: #fff;
+		border-bottom: 2px solid var(--indigo);
+		box-shadow: 0 16px 32px rgb(20 29 69 / 16%);
+		padding: 0 24px 12px;
 	}
 	.menu-toggle > summary {
 		list-style: none;
@@ -299,8 +318,13 @@ h3,
 		flex-direction: column;
 		align-items: stretch;
 		gap: 0;
-		margin-top: 12px;
-		border-top: 1px solid var(--line);
+	}
+	.menu-search {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		padding: 14px 4px 4px;
+		font-weight: 600;
 	}
 	.menu-toggle .nav a,
 	.menu-toggle .nav summary {
@@ -328,9 +352,15 @@ h3,
 .nav-desktop {
 	display: flex;
 }
-@media (max-width: 960px) {
+.menu-search {
+	display: none;
+}
+@media (max-width: 1180px) {
 	.nav-desktop {
 		display: none !important;
+	}
+	.menu-search {
+		display: flex;
 	}
 }
 
@@ -407,23 +437,23 @@ h3,
 }
 .hero-grid {
 	display: grid;
-	grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
-	gap: 48px;
+	grid-template-columns: minmax(0, 4fr) minmax(0, 6fr);
+	gap: 40px;
 	align-items: start;
-	padding-top: 52px;
-	padding-bottom: 48px;
+	padding-top: 24px;
+	padding-bottom: 20px;
 }
 .hero h1 {
 	margin: 0;
 	color: #fff;
-	font-size: var(--fs-1);
-	line-height: 1.15;
+	font-size: clamp(28px, 3.2vw, 36px);
+	line-height: 1.2;
 	letter-spacing: -0.01em;
 }
 .hero-lede {
-	margin: 12px 0 0;
+	margin: 4px 0 0;
 	font-family: var(--font-head);
-	font-size: var(--fs-3);
+	font-size: 19px;
 	font-weight: 600;
 	color: #fff;
 }
@@ -439,28 +469,33 @@ h3,
 	vertical-align: 1px;
 }
 .hero-hours {
-	margin-top: 28px;
-	padding-top: 20px;
+	margin-top: 12px;
+	padding-top: 10px;
 	border-top: 1px solid rgb(255 255 255 / 22%);
 }
 .hero-hours h2 {
-	margin: 0 0 4px;
-	font-size: 17px;
+	margin: 0;
+	font-size: 15px;
 	font-weight: 600;
 	color: #b9c1e2;
 }
 .hero-hours p {
 	margin: 0;
 	white-space: pre-line;
-	font-size: 19px;
-	line-height: 1.8;
+	font-size: 17px;
+	line-height: 1.6;
 	color: #fff;
 }
 .hero-actions {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 12px;
-	margin-top: 28px;
+	gap: 10px;
+	margin-top: 14px;
+}
+.hero-actions .btn {
+	min-height: 46px;
+	padding: 0 18px;
+	font-size: 17px;
 }
 .btn-light {
 	background: #fff;
@@ -480,10 +515,14 @@ h3,
 	color: #fff;
 }
 .hero-side {
-	display: flex;
-	flex-direction: column;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
 	gap: 20px;
+	align-items: start;
 	min-width: 0;
+}
+.hero-side > :only-child {
+	grid-column: 1 / -1;
 }
 .slider {
 	display: flex;
@@ -494,7 +533,7 @@ h3,
 	border-radius: 6px;
 	overflow: hidden;
 	background: var(--indigo-deep);
-	aspect-ratio: 3 / 2;
+	aspect-ratio: 3 / 1; /* ตรงกับขนาดแบนเนอร์ 1920x640 */
 }
 .slide {
 	position: absolute;
@@ -516,7 +555,7 @@ h3,
 .dots {
 	display: flex;
 	gap: 6px;
-	padding-top: 12px;
+	padding-top: 4px;
 }
 .dots button {
 	width: 28px;
@@ -532,14 +571,16 @@ h3,
 }
 .director {
 	margin: 0;
+	width: 150px;
 	display: flex;
-	align-items: center;
-	gap: 16px;
+	flex-direction: column;
+	gap: 8px;
 }
 .director img,
 .director .ph {
-	width: 72px;
-	height: 86px;
+	width: 100%;
+	height: auto;
+	aspect-ratio: 5 / 6;
 	object-fit: cover;
 	object-position: top;
 	border-radius: 4px;
@@ -549,23 +590,23 @@ h3,
 .director figcaption {
 	display: flex;
 	flex-direction: column;
-	line-height: 1.45;
+	line-height: 1.4;
 }
 .director-name {
 	font-family: var(--font-head);
-	font-size: 20px;
+	font-size: 17px;
 	font-weight: 700;
 	color: #fff;
 }
 .director-title {
-	font-size: 15px;
+	font-size: 14px;
 	color: #b9c1e2;
 }
 /* แถบลายมัดหมี่: จุดเด่นเดียวของหน้า */
 .ikat {
-	height: 24px;
-	background: url('/ikat.svg') 0 0 / 48px 24px repeat-x;
-	border-top: 4px solid var(--indigo-deep);
+	height: 16px;
+	background: url('/ikat.svg') 0 0 / 32px 16px repeat-x;
+	border-top: 3px solid var(--indigo-deep);
 }
 
 /* บริการสำหรับผู้ป่วย: แถวลิงก์ขนาดใหญ่ กดง่ายด้วยนิ้ว */
@@ -1189,9 +1230,9 @@ h3,
 @media (max-width: 860px) {
 	.hero-grid {
 		grid-template-columns: 1fr;
-		gap: 32px;
-		padding-top: 32px;
-		padding-bottom: 32px;
+		gap: 16px;
+		padding-top: 20px;
+		padding-bottom: 18px;
 	}
 	.news-grid {
 		grid-template-columns: 1fr;
@@ -1203,16 +1244,72 @@ h3,
 		padding-left: 16px;
 		padding-right: 16px;
 	}
-	.menu-toggle {
-		order: 2;
-		width: auto;
+	/* มือถือ: หัวเว็บแถวเดียว ชื่อ + ปุ่มฉุกเฉิน + เมนู (ค้นหาอยู่ในเมนู) */
+	.site-header > .wrap {
+		gap: 8px;
+		padding-top: 8px;
+		padding-bottom: 8px;
 	}
-	.menu-toggle[open] {
-		width: 100%;
+	.brand {
+		gap: 8px;
+		min-width: 0;
+	}
+	.brand-mark {
+		width: 36px;
+		height: 36px;
+		border-radius: 6px;
+	}
+	.brand-mark svg {
+		width: 20px;
+		height: 20px;
+	}
+	.brand-name {
+		font-size: 17px;
+		white-space: nowrap;
 	}
 	.actions {
-		order: 3;
 		margin-left: auto;
+	}
+	.actions .icon-btn,
+	.em-label {
+		display: none;
+	}
+	.btn-emergency {
+		min-height: 44px;
+		padding: 0 12px;
+		gap: 6px;
+	}
+	.menu-toggle > summary {
+		padding: 0 12px;
+	}
+	@media (max-width: 400px) {
+		.menu-label {
+			position: absolute;
+			width: 1px;
+			height: 1px;
+			overflow: hidden;
+			clip: rect(0 0 0 0);
+		}
+	}
+	.menu-toggle > .menu-panel {
+		padding: 0 16px 12px;
+	}
+	html {
+		scroll-padding-top: 72px;
+	}
+	.hero-side {
+		grid-template-columns: 1fr;
+		gap: 12px;
+	}
+	.director {
+		width: auto;
+		flex-direction: row;
+		align-items: center;
+		gap: 12px;
+	}
+	.director img,
+	.director .ph {
+		width: 44px;
 	}
 	.section {
 		padding-top: 44px;
@@ -1225,8 +1322,14 @@ h3,
 		font-size: 18px;
 	}
 	.hero-actions .btn {
-		flex: 1 1 100%;
+		flex: 1 1 auto;
+		white-space: nowrap;
 		justify-content: center;
+		padding: 0 12px;
+		font-size: 16px;
+	}
+	.hero-hours p {
+		font-size: 16px;
 	}
 	.news-lead h3 {
 		font-size: 23px;
