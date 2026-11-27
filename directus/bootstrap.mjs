@@ -214,6 +214,7 @@ const collections = [
 		},
 		fields: [
 			{ field: 'hospital_name', type: 'string', meta: { interface: 'input', width: 'full', translations: th('ชื่อโรงพยาบาล') } },
+			{ field: 'vision', type: 'text', meta: { interface: 'input-multiline', width: 'full', translations: th('วิสัยทัศน์'), note: 'แสดงใต้ชื่อโรงพยาบาลในหน้าแรก เว้นว่างเมื่อไม่ต้องการแสดง' } },
 			{ field: 'phone', type: 'string', meta: { interface: 'input', width: 'half', translations: th('เบอร์โทร') } },
 			{ field: 'emergency_phone', type: 'string', meta: { interface: 'input', width: 'half', translations: th('เบอร์ฉุกเฉิน') } },
 			{ field: 'address', type: 'text', meta: { interface: 'input-multiline', width: 'full', translations: th('ที่อยู่') } },
@@ -317,10 +318,13 @@ async function ensureCollections() {
 		if (have.has(c.collection)) {
 			// ตารางมีอยู่แล้ว: เพิ่มเฉพาะช่องใหม่ที่ยังไม่มี
 			const existing = new Set((await api('GET', `/fields/${c.collection}`)).map((f) => f.field));
-			for (const f of c.fields.filter((f) => !existing.has(f.field))) {
+			const added = c.fields.filter((f) => !existing.has(f.field));
+			for (const f of added) {
 				await api('POST', `/fields/${c.collection}`, f);
 				console.log(`+ ${c.collection}.${f.field}`);
 			}
+			// ช่องใหม่ต่อท้ายฟอร์มเสมอ: เรียงช่องในหลังบ้านใหม่ตามลำดับที่ประกาศไว้ด้านบน
+			if (added.length) await api('PATCH', `/fields/${c.collection}`, c.fields.map((f, i) => ({ field: f.field, meta: { sort: i + 2 } })));
 			if (c.meta.preview_url !== undefined) await api('PATCH', `/collections/${c.collection}`, { meta: { preview_url: c.meta.preview_url } });
 			continue;
 		}

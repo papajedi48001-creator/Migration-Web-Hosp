@@ -86,6 +86,7 @@ const firstPhone = settings.phone ? String(settings.phone).split(/[,/]/)[0].trim
 		<div class="wrap hero-in">
 			<div class="hero-main">
 				<h1 id="h-hero">{name}</h1>
+				{settings.vision && <p class="hero-vision">{plain(settings.vision)}</p>}
 				<p class="hero-lede"><span class="live-dot" aria-hidden="true"></span>ห้องฉุกเฉินเปิดตลอด 24 ชั่วโมง</p>
 				{settings.phone && <p class="hero-phones">โทร {settings.phone}</p>}
 				{
