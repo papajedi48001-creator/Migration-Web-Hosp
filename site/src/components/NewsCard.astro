@@ -7,7 +7,7 @@ const { n } = Astro.props;
 ---
 
 <a class="card" href={n.href}>
-	{n.img ? <img class="cover" src={n.img} alt="" loading="lazy" decoding="async" width="600" height="400" /> : <div class="ph" aria-hidden="true" />}
+	{n.img ? <span class="zoom"><img class="cover" src={n.img} alt="" loading="lazy" decoding="async" width="600" height="400" /></span> : <div class="ph" aria-hidden="true" />}
 	<span class="meta">
 		{n.draft && <span class="badge badge-pin">ฉบับร่าง</span>}
 		{n.pinned && <span class="badge badge-pin">ปักหมุด</span>}

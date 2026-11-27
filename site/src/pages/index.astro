@@ -63,14 +63,28 @@ const procurement = await Promise.all(
 const mapUrl = safeLink(settings.map_url);
 const mapEmbed = mapUrl && /^https:\/\/www\.google\.com\/maps\/embed/.test(mapUrl) ? mapUrl : null;
 const phoneHref = telHref(settings.phone);
+// ช่องเบอร์โทรอาจมีหลายเบอร์และโทรสาร ปุ่มโทรใช้เบอร์แรก ส่วนเบอร์ทั้งหมดแสดงเป็นข้อความ
+const firstPhone = settings.phone ? String(settings.phone).split(/[,/]/)[0].trim() : '';
 ---
 
 <Base current={href('')}>
-	<section class="hero" aria-labelledby="h-hero">
-		<div class="wrap hero-grid">
+	<section class:list={['hero', { 'hero-photo': slides.length > 0 }]} aria-labelledby="h-hero" data-slider={slides.length > 1 ? '' : undefined}>
+		{
+			slides.length > 0 && (
+				<div class="hero-bg" aria-hidden="true">
+					{slides.map((s, i) => (
+						<div class:list={['slide', { on: i === 0 }]}>
+							<img src={s.img} alt="" width="1920" height="640" fetchpriority={i === 0 ? 'high' : undefined} loading={i === 0 ? 'eager' : 'lazy'} />
+						</div>
+					))}
+				</div>
+			)
+		}
+		<div class="wrap hero-in">
 			<div class="hero-main">
 				<h1 id="h-hero">{name}</h1>
-				<p class="hero-lede">ห้องฉุกเฉินเปิดตลอด 24 ชั่วโมง</p>
+				<p class="hero-lede"><span class="live-dot" aria-hidden="true"></span>ห้องฉุกเฉินเปิดตลอด 24 ชั่วโมง</p>
+				{settings.phone && <p class="hero-phones">โทร {settings.phone}</p>}
 				{
 					settings.opening_hours && (
 						<div class="hero-hours">
@@ -86,7 +100,7 @@ const phoneHref = telHref(settings.phone);
 								<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
 									<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z" />
 								</svg>
-								โทร {settings.phone}
+								โทร {firstPhone}
 							</a>
 						)
 					}
@@ -94,44 +108,34 @@ const phoneHref = telHref(settings.phone);
 						ดูเส้นทาง
 					</a>
 				</div>
-			</div>
-			{
-				(slides.length > 0 || settings.director_name || directorPhoto) && (
-					<div class="hero-side">
-						{slides.length > 0 && (
-							<div class="slider" data-slider aria-label="แบนเนอร์" role="region">
-								<div class="slides">
+				{
+					slides.length > 0 && (
+						<div class="hero-slides" role="group" aria-label="แบนเนอร์">
+							{slides.length > 1 && (
+								<div class="dots">
 									{slides.map((s, i) => (
-										<div class:list={['slide', { on: i === 0 }]} aria-hidden={i === 0 ? undefined : 'true'}>
-											{s.link ? (
-												<a href={s.link}>
-													<img src={s.img} alt={s.title} width="1920" height="640" fetchpriority={i === 0 ? 'high' : undefined} loading={i === 0 ? 'eager' : 'lazy'} />
-												</a>
-											) : (
-												<img src={s.img} alt={s.title} width="1920" height="640" fetchpriority={i === 0 ? 'high' : undefined} loading={i === 0 ? 'eager' : 'lazy'} />
-											)}
-										</div>
+										<button type="button" aria-label={`แบนเนอร์ที่ ${i + 1}: ${s.title}`} aria-current={i === 0 ? 'true' : 'false'} />
 									))}
 								</div>
-								{slides.length > 1 && (
-									<div class="dots" role="group" aria-label="เลือกแบนเนอร์">
-										{slides.map((s, i) => (
-											<button type="button" aria-label={`แบนเนอร์ที่ ${i + 1}: ${s.title}`} aria-current={i === 0 ? 'true' : 'false'} />
-										))}
-									</div>
-								)}
-							</div>
-						)}
-						{(settings.director_name || directorPhoto) && (
-							<figure class="director">
-								{directorPhoto ? <img src={directorPhoto} alt={settings.director_name ?? ''} width="120" height="144" /> : <div class="ph" aria-hidden="true" />}
-								<figcaption>
-									{settings.director_name && <span class="director-name">{settings.director_name}</span>}
-									<span class="director-title">{settings.director_title || `ผู้อำนวยการ${name}`}</span>
-								</figcaption>
-							</figure>
-						)}
-					</div>
+							)}
+							{slides.map((s, i) => (
+								<p class:list={['slide-cap', { on: i === 0 }]} hidden={i !== 0}>
+									{s.link ? <a href={s.link}>{s.title}</a> : <span>{s.title}</span>}
+								</p>
+							))}
+						</div>
+					)
+				}
+			</div>
+			{
+				(settings.director_name || directorPhoto) && (
+					<figure class="director">
+						{directorPhoto ? <img src={directorPhoto} alt={settings.director_name ?? ''} width="96" height="116" /> : <div class="ph" aria-hidden="true" />}
+						<figcaption>
+							{settings.director_name && <span class="director-name">{settings.director_name}</span>}
+							<span class="director-title">{settings.director_title || `ผู้อำนวยการ${name}`}</span>
+						</figcaption>
+					</figure>
 				)
 			}
 		</div>
@@ -176,7 +180,7 @@ const phoneHref = telHref(settings.phone);
 					{p.lead ? (
 						<div class="news-grid">
 							<a class="news-lead" href={p.lead.href}>
-								{p.lead.img ? <img class="cover" src={p.lead.img} alt="" width="800" height="320" loading="lazy" /> : <div class="ph" aria-hidden="true" />}
+								{p.lead.img ? <span class="zoom"><img class="cover" src={p.lead.img} alt="" width="800" height="450" loading="lazy" /></span> : <div class="ph" aria-hidden="true" />}
 								<span class="meta">
 									{p.lead.draft && <span class="badge badge-pin">ฉบับร่าง</span>}
 									{p.lead.pinned && <span class="badge badge-pin">ปักหมุด</span>}
@@ -189,7 +193,7 @@ const phoneHref = telHref(settings.phone);
 							<div class="news-side">
 								{p.rest.map((n) => (
 									<a class="news-item" href={n.href}>
-										{n.img ? <img class="cover" src={n.img} alt="" width="120" height="90" loading="lazy" /> : <div class="ph" aria-hidden="true" />}
+										{n.img ? <span class="zoom"><img class="cover" src={n.img} alt="" width="120" height="90" loading="lazy" /></span> : <div class="ph" aria-hidden="true" />}
 										<div>
 											<span class="news-cat">{n.cat}</span>
 											<span class="news-title">{n.title}</span>
@@ -293,25 +297,24 @@ const phoneHref = telHref(settings.phone);
 </Base>
 
 <script>
-	// แบนเนอร์เลื่อนเอง ทุก 7 วินาที (หยุดเมื่อเอาเมาส์วาง หรือผู้ใช้ตั้งค่าลดการเคลื่อนไหว)
+	// แบนเนอร์ (เป็นภาพพื้นหลังส่วนหัว) เปลี่ยนเองทุก 7 วินาที แบบเฟดพร้อมซูมช้า
+	// หยุดเมื่อเอาเมาส์วางหรือโฟกัสในส่วนหัว และไม่เปลี่ยนเองเลยถ้าผู้ใช้ตั้งค่าลดการเคลื่อนไหว
 	const slider = document.querySelector<HTMLElement>('[data-slider]');
-	const slides = slider ? [...slider.querySelectorAll<HTMLElement>('.slide')] : [];
+	const slides = slider ? [...slider.querySelectorAll<HTMLElement>('.hero-bg .slide')] : [];
+	const caps = slider ? [...slider.querySelectorAll<HTMLElement>('.slide-cap')] : [];
 	const dots = slider ? [...slider.querySelectorAll<HTMLButtonElement>('.dots button')] : [];
-	if (slides.length > 1) {
+	if (slider && slides.length > 1) {
 		let cur = 0;
 		let timer: number | undefined;
 		const show = (i: number) => {
 			cur = (i + slides.length) % slides.length;
-			slides.forEach((s, j) => {
-				s.classList.toggle('on', j === cur);
-				if (j === cur) s.removeAttribute('aria-hidden');
-				else s.setAttribute('aria-hidden', 'true');
-				s.querySelectorAll('a').forEach((a) => (j === cur ? a.removeAttribute('tabindex') : a.setAttribute('tabindex', '-1')));
-			});
+			slides.forEach((s, j) => s.classList.toggle('on', j === cur));
+			caps.forEach((c, j) => (c.hidden = j !== cur));
 			dots.forEach((d, j) => d.setAttribute('aria-current', String(j === cur)));
 		};
 		const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
 		const start = () => {
+			window.clearInterval(timer);
 			if (!reduce) timer = window.setInterval(() => show(cur + 1), 7000);
 		};
 		const stop = () => window.clearInterval(timer);
@@ -321,10 +324,10 @@ const phoneHref = telHref(settings.phone);
 				show(j);
 			}),
 		);
-		slider!.addEventListener('mouseenter', stop);
-		slider!.addEventListener('mouseleave', start);
-		slider!.addEventListener('focusin', stop);
-		show(0);
+		slider.addEventListener('mouseenter', stop);
+		slider.addEventListener('mouseleave', start);
+		slider.addEventListener('focusin', stop);
+		slider.addEventListener('focusout', start);
 		start();
 	}
 
