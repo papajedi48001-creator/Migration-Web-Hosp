@@ -4,6 +4,7 @@
 #   sudo git clone https://github.com/papajedi48001-creator/Migration-Web-Hosp /opt/hospweb
 #   cd /opt/hospweb && sudo ./scripts/setup-server.sh
 #
+#   sudo ./scripts/setup-server.sh cms        # หลัง git pull: อัปเดตช่อง/ตารางในหลังบ้าน (ถามอีเมล รหัสผ่าน และรหัส 2FA ของ admin)
 #   sudo ./scripts/setup-server.sh rollback   # ถอด nginx :8443, firewall, cron และหยุด container (ข้อมูลไม่ถูกลบ)
 #
 # ทำอะไรบ้าง (รันซ้ำได้ ขั้นที่ทำแล้วจะข้าม)
@@ -18,6 +19,8 @@
 # ไม่แตะ: conf.d/waritch.conf, WordPress, แอปเดิม (/waritch/, /iclaim/, ฯลฯ), container ของ waritch-backoffice
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# บัญชี admin ที่ใส่มาตอนรัน ต้องชนะค่าใน .env (ADMIN_PASSWORD ใน .env คือรหัสเริ่มต้นที่มักถูกเปลี่ยนไปแล้ว)
+CLI_ADMIN_EMAIL=${ADMIN_EMAIL:-} CLI_ADMIN_PASSWORD=${ADMIN_PASSWORD:-} CLI_ADMIN_OTP=${ADMIN_OTP:-}
 REPO=$(pwd)
 TS=$(date +%Y%m%d-%H%M%S)
 BK=/root/hospweb-setup-backup
@@ -170,10 +173,18 @@ if [[ -z ${DIRECTUS_READ_TOKEN:-} ]]; then
 	else
 		warn "บัญชี 'ระบบ build เว็บ' มีอยู่แล้ว token จึงไม่แสดงซ้ำ ให้ admin สร้าง token ใหม่ในหลังบ้าน (ผู้ใช้ > site-reader > Token) แล้วใส่ DIRECTUS_READ_TOKEN ใน .env"
 	fi
-elif [[ -n ${ADMIN_OTP:-} ]]; then
-	bootstrap # อัปเดตโครงสร้างหลังบ้านหลัง git pull (ต้องใส่ OTP เพราะ admin ตั้ง 2FA แล้ว)
+elif [[ ${1:-} == cms || -n $CLI_ADMIN_OTP ]]; then
+	# อัปเดตโครงสร้างหลังบ้านหลัง git pull: ถามบัญชี admin ตอนรัน ไม่ใช้ค่าใน .env และไม่เก็บไว้ที่ไหน
+	ADMIN_EMAIL=$CLI_ADMIN_EMAIL ADMIN_PASSWORD=$CLI_ADMIN_PASSWORD ADMIN_OTP=$CLI_ADMIN_OTP
+	[[ -n $ADMIN_EMAIL ]] || read -r -p "อีเมล admin [admin01@waritch-hosp.moph.go.th]: " ADMIN_EMAIL
+	ADMIN_EMAIL=${ADMIN_EMAIL:-admin01@waritch-hosp.moph.go.th}
+	[[ -n $ADMIN_PASSWORD ]] || { read -r -s -p "รหัสผ่าน: " ADMIN_PASSWORD; echo; }
+	[[ -n $ADMIN_OTP ]] || read -r -p "รหัส 2FA 6 หลัก (ใส่ตอนรหัสใหม่เพิ่งขึ้น): " ADMIN_OTP
+	export ADMIN_EMAIL ADMIN_PASSWORD ADMIN_OTP
+	bootstrap || die "อัปเดตหลังบ้านไม่สำเร็จ: ถ้าขึ้น INVALID_CREDENTIALS แปลว่าอีเมลหรือรหัสผ่านผิด ถ้าขึ้น INVALID_OTP ให้รันใหม่แล้วใส่รหัส 2FA ตอนรหัสใหม่เพิ่งขึ้น"
+	unset ADMIN_PASSWORD ADMIN_OTP
 else
-	echo "ตั้งค่าหลังบ้านไปแล้ว (ถ้าต้องการอัปเดตโครงสร้างหลัง git pull: sudo ADMIN_OTP=<รหัส 6 หลัก> ./scripts/setup-server.sh)"
+	echo "ตั้งค่าหลังบ้านไปแล้ว (ถ้าต้องการอัปเดตโครงสร้างหลัง git pull: sudo ./scripts/setup-server.sh cms)"
 fi
 
 # ---------------------------------------------------------------- 3. โฟลเดอร์ + SELinux

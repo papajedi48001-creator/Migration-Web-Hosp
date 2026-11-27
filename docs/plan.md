@@ -134,7 +134,7 @@ CPU: compiler ของ Astro และ Pagefind ต้องใช้ CPU ร�
 1. เข้า `https://waritch-hosp.moph.go.th:8443` ด้วย `admin01@waritch-hosp.moph.go.th` (บัญชีแรกที่ระบบสร้าง ไม่ต้องสร้างบัญชี admin แยก เพราะจะกินที่ 1 ใน 3) ระบบจะบังคับตั้ง 2FA ทันที (สแกน QR ด้วย Google Authenticator / Microsoft Authenticator)
 2. ลบ `ADMIN_EMAIL` และ `ADMIN_PASSWORD` ออกจาก `.env` แล้ว `docker compose up -d`
 3. สร้าง `admin02@waritch-hosp.moph.go.th` และ `admin03@waritch-hosp.moph.go.th` ในเมนู "ผู้ใช้" แล้วเลือก role ให้แต่ละคน: **ผู้ดูแลระบบ** (ทำได้ทุกอย่าง) หรือ **ประชาสัมพันธ์** (แก้ได้แค่เนื้อหา) ตั้งต้นแนะนำให้ admin01 เป็นผู้ดูแลระบบ ส่วน admin02/03 เป็นประชาสัมพันธ์ ถ้าทั้งสามคนต้องเป็นผู้ดูแลระบบก็ได้ ให้แต่ละคนตั้ง 2FA ตอน login ครั้งแรก
-4. รัน bootstrap ครั้งต่อไปต้องใส่ OTP ของ admin: `ADMIN_OTP=123456 node directus/bootstrap.mjs`
+4. หลัง `git pull` ที่มีช่องหรือตารางใหม่ในหลังบ้าน ให้รัน `sudo ./scripts/setup-server.sh cms` สคริปต์จะถามอีเมล รหัสผ่าน และรหัส 2FA ของ admin (ไม่ใช้รหัสใน `.env` และไม่เก็บไว้)
 
 ระหว่างพัฒนาที่ยังไม่ได้ตั้ง nginx ใช้ `ssh -L 8055:127.0.0.1:8055 admin_waritch@192.168.1.251` แล้วเปิด `http://localhost:8055` ด้วย Chrome/Edge ได้ (IP ที่ Directus เห็นจะเป็น gateway ของ Docker ซึ่งอยู่ในช่วง LAN ที่อนุญาต)
 
