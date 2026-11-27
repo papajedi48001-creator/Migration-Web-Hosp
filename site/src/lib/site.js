@@ -50,3 +50,38 @@ export function safeLink(url) {
 }
 
 export const telHref = (phone) => (phone ? `tel:${String(phone).split(/[,/]/)[0].replace(/[^\d+]/g, '')}` : null);
+
+// ส่วนในหน้าแรกที่เจ้าหน้าที่เรียงลำดับได้ในหลังบ้าน (ช่อง home_sections ของข้อมูลโรงพยาบาล)
+// ชื่อภาษาไทยต้องตรงกับ HOME_SECTION_NAMES ใน directus/bootstrap.mjs
+export const HOME_SECTIONS = {
+	ข่าวสาร: 'news',
+	ประกาศจัดซื้อจัดจ้าง: 'procurement',
+	บริการสำหรับผู้ป่วย: 'services',
+	ติดต่อโรงพยาบาล: 'contact',
+};
+
+/**
+ * ลำดับส่วนในหน้าแรกจากค่าที่ตั้งในหลังบ้าน
+ * - ข้ามชื่อที่ไม่รู้จักและชื่อซ้ำ, ส่วนที่ปิด "แสดง" ถูกซ่อน
+ * - ส่วนที่ไม่มีในรายการ (เช่น เผลอลบแถว หรือยังไม่ได้ตั้ง) ต่อท้ายตามลำดับเริ่มต้น
+ */
+export function homeSections(value) {
+	let rows = value;
+	if (typeof rows === 'string') {
+		try {
+			rows = JSON.parse(rows);
+		} catch {
+			rows = null;
+		}
+	}
+	const order = [];
+	const seen = new Set();
+	for (const r of Array.isArray(rows) ? rows : []) {
+		const key = HOME_SECTIONS[String(r?.section ?? '').trim()];
+		if (!key || seen.has(key)) continue;
+		seen.add(key);
+		if (r.show !== false) order.push(key);
+	}
+	for (const key of Object.values(HOME_SECTIONS)) if (!seen.has(key)) order.push(key);
+	return order;
+}

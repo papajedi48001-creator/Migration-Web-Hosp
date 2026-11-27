@@ -28,6 +28,10 @@ async function api(method, path, body) {
 }
 const th = (s) => [{ language: 'th-TH', translation: s }];
 
+// ส่วนในหน้าแรกที่เรียงลำดับได้ (ชื่อต้องตรงกับ HOME_SECTIONS ใน site/src/lib/site.js)
+const HOME_SECTION_NAMES = ['ข่าวสาร', 'ประกาศจัดซื้อจัดจ้าง', 'บริการสำหรับผู้ป่วย', 'ติดต่อโรงพยาบาล'];
+const HOME_SECTIONS_DEFAULT = JSON.stringify(HOME_SECTION_NAMES.map((section) => ({ section, show: true })));
+
 // ---------- ตารางเนื้อหา ----------
 const statusField = {
 	field: 'status',
@@ -221,6 +225,46 @@ const collections = [
 			{ field: 'director_title', type: 'string', schema: { default_value: 'ผู้อำนวยการโรงพยาบาลวาริชภูมิ' }, meta: { interface: 'input', width: 'half', translations: th('ตำแหน่ง') } },
 			imageField('director_photo', 'รูปผู้อำนวยการ', 'แนวตั้ง แนะนำ 600×800 px'),
 			{ field: 'announcement', type: 'text', meta: { interface: 'input-multiline', width: 'full', translations: th('ข้อความแจ้งเตือนด่วน (แถบบนสุดของเว็บ)'), note: 'เว้นว่างเมื่อไม่ต้องการแสดง' } },
+			// ลำดับส่วนในหน้าแรก: ลากเรียงและเปิด/ปิดได้ (ส่วนหัวกับแบนเนอร์อยู่บนสุดเสมอ)
+			// ค่าในช่อง section เป็นชื่อภาษาไทย ให้ตรงกับ HOME_SECTIONS ใน site/src/lib/site.js
+			{
+				field: 'home_sections',
+				type: 'json',
+				schema: { default_value: HOME_SECTIONS_DEFAULT },
+				meta: {
+					interface: 'list',
+					special: ['cast-json'],
+					width: 'full',
+					translations: th('ลำดับส่วนในหน้าแรก'),
+					note: 'ลากเพื่อเรียงลำดับ ปิด "แสดง" เพื่อซ่อนส่วนนั้น ส่วนหัวและแบนเนอร์อยู่บนสุดเสมอ ส่วนที่ไม่อยู่ในรายการจะต่อท้ายให้เอง',
+					options: {
+						template: '{{section}}',
+						addLabel: 'เพิ่มส่วน',
+						fields: [
+							{
+								field: 'section',
+								name: 'ส่วน',
+								type: 'string',
+								meta: {
+									field: 'section',
+									type: 'string',
+									interface: 'select-dropdown',
+									width: 'half',
+									required: true,
+									options: { choices: HOME_SECTION_NAMES.map((n) => ({ text: n, value: n })) },
+								},
+							},
+							{
+								field: 'show',
+								name: 'แสดง',
+								type: 'boolean',
+								schema: { default_value: true },
+								meta: { field: 'show', type: 'boolean', interface: 'boolean', width: 'half', options: { label: 'แสดงในหน้าแรก' } },
+							},
+						],
+					},
+				},
+			},
 		],
 	},
 ];
@@ -288,6 +332,12 @@ async function ensureCollections() {
 	}
 	const fields = new Set((await api('GET', '/fields')).map((f) => `${f.collection}.${f.field}`));
 	await ensureNewsAttachments(fields);
+	// เว็บที่ติดตั้งไว้ก่อนมีช่องลำดับส่วนหน้าแรก: ใส่ลำดับเริ่มต้นให้ เจ้าหน้าที่จะได้เห็นรายการให้ลากเรียง
+	const settings = await api('GET', '/items/site_settings?fields=home_sections');
+	if (!settings?.home_sections) {
+		await api('PATCH', '/items/site_settings', { home_sections: JSON.parse(HOME_SECTIONS_DEFAULT) });
+		console.log('+ site_settings.home_sections (ลำดับเริ่มต้น)');
+	}
 	// ความสัมพันธ์รูปภาพ -> directus_files
 	for (const [col, field] of [['news', 'cover'], ['banners', 'image'], ['site_settings', 'director_photo']]) {
 		const rels = await api('GET', `/relations/${col}`);

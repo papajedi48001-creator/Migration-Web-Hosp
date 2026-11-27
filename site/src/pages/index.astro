@@ -3,7 +3,7 @@ import Base from '../layouts/Base.astro';
 import { CATEGORIES, getBanners, getNews } from '../lib/directus.js';
 import { mediaUrl } from '../lib/media.js';
 import { card, catHref, pinnedFirst } from '../lib/news.js';
-import { getSite, href, pageHref, plain, safeLink, telHref } from '../lib/site.js';
+import { getSite, homeSections, href, pageHref, plain, safeLink, telHref } from '../lib/site.js';
 
 const { settings, pages, name } = await getSite();
 const [banners, news] = await Promise.all([getBanners(), getNews()]);
@@ -63,6 +63,9 @@ const procurement = await Promise.all(
 const mapUrl = safeLink(settings.map_url);
 const mapEmbed = mapUrl && /^https:\/\/www\.google\.com\/maps\/embed/.test(mapUrl) ? mapUrl : null;
 const phoneHref = telHref(settings.phone);
+
+// ลำดับส่วนในหน้าแรก ตั้งได้ในหลังบ้าน (ข้อมูลโรงพยาบาล > ลำดับส่วนในหน้าแรก)
+const homeOrder = homeSections(settings.home_sections);
 // ช่องเบอร์โทรอาจมีหลายเบอร์และโทรสาร ปุ่มโทรใช้เบอร์แรก ส่วนเบอร์ทั้งหมดแสดงเป็นข้อความ
 const firstPhone = settings.phone ? String(settings.phone).split(/[,/]/)[0].trim() : '';
 ---
@@ -142,158 +145,165 @@ const firstPhone = settings.phone ? String(settings.phone).split(/[,/]/)[0].trim
 		<div class="ikat" aria-hidden="true"></div>
 	</section>
 
-	<section class="wrap section" aria-labelledby="h-news">
-		<div class="section-head">
-			<h2 id="h-news">ข่าวสาร</h2>
-			<a class="more" href={href('news/')}>ดูข่าวทั้งหมด</a>
-		</div>
-		{
-			panels.length > 1 && (
-				<div class="pills" role="tablist" aria-label="หมวดข่าว" data-tabs>
-					{panels.map((p, i) => (
-						<a class="pill" role="tab" id={`tab-${p.key}`} href={p.key === 'all' ? href('news/') : catHref(p.key)} aria-controls={`panel-${p.key}`} aria-selected={i === 0 ? 'true' : 'false'} tabindex={i === 0 ? undefined : '-1'}>
-							{p.label}
-						</a>
-					))}
-				</div>
-			)
-		}
-		{
-			panels.map((p, i) => (
-				<div class="tabpanel" role="tabpanel" id={`panel-${p.key}`} aria-labelledby={panels.length > 1 ? `tab-${p.key}` : undefined} hidden={i !== 0}>
-					{p.lead ? (
-						<div class="news-grid">
-							<a class="news-lead" href={p.lead.href}>
-								{p.lead.img ? <span class="zoom"><img class="cover" src={p.lead.img} alt="" width="800" height="450" loading="lazy" /></span> : <div class="ph" aria-hidden="true" />}
-								<span class="meta">
-									{p.lead.draft && <span class="badge badge-pin">ฉบับร่าง</span>}
-									{p.lead.pinned && <span class="badge badge-pin">ปักหมุด</span>}
-									<span>{p.lead.cat}</span>
-									{p.lead.date && <time datetime={p.lead.iso}>{p.lead.date}</time>}
-								</span>
-								<h3>{p.lead.title}</h3>
-								{p.lead.summary && <p>{p.lead.summary}</p>}
-							</a>
-							<div class="news-side">
-								{p.rest.map((n) => (
-									<a class="news-item" href={n.href}>
-										{n.img ? <span class="zoom"><img class="cover" src={n.img} alt="" width="120" height="90" loading="lazy" /></span> : <div class="ph" aria-hidden="true" />}
-										<div>
-											<span class="news-cat">{n.cat}</span>
-											<span class="news-title">{n.title}</span>
-											{n.date && <time class="news-date" datetime={n.iso}>{n.date}</time>}
+	{
+		homeOrder.map((key) => (
+			<Fragment>
+				{key === 'news' && (
+					<section class="wrap section" aria-labelledby="h-news">
+						<div class="section-head">
+							<h2 id="h-news">ข่าวสาร</h2>
+							<a class="more" href={href('news/')}>ดูข่าวทั้งหมด</a>
+						</div>
+						{
+							panels.length > 1 && (
+								<div class="pills" role="tablist" aria-label="หมวดข่าว" data-tabs>
+									{panels.map((p, i) => (
+										<a class="pill" role="tab" id={`tab-${p.key}`} href={p.key === 'all' ? href('news/') : catHref(p.key)} aria-controls={`panel-${p.key}`} aria-selected={i === 0 ? 'true' : 'false'} tabindex={i === 0 ? undefined : '-1'}>
+											{p.label}
+										</a>
+									))}
+								</div>
+							)
+						}
+						{
+							panels.map((p, i) => (
+								<div class="tabpanel" role="tabpanel" id={`panel-${p.key}`} aria-labelledby={panels.length > 1 ? `tab-${p.key}` : undefined} hidden={i !== 0}>
+									{p.lead ? (
+										<div class="news-grid">
+											<a class="news-lead" href={p.lead.href}>
+												{p.lead.img ? <span class="zoom"><img class="cover" src={p.lead.img} alt="" width="800" height="450" loading="lazy" /></span> : <div class="ph" aria-hidden="true" />}
+												<span class="meta">
+													{p.lead.draft && <span class="badge badge-pin">ฉบับร่าง</span>}
+													{p.lead.pinned && <span class="badge badge-pin">ปักหมุด</span>}
+													<span>{p.lead.cat}</span>
+													{p.lead.date && <time datetime={p.lead.iso}>{p.lead.date}</time>}
+												</span>
+												<h3>{p.lead.title}</h3>
+												{p.lead.summary && <p>{p.lead.summary}</p>}
+											</a>
+											<div class="news-side">
+												{p.rest.map((n) => (
+													<a class="news-item" href={n.href}>
+														{n.img ? <span class="zoom"><img class="cover" src={n.img} alt="" width="120" height="90" loading="lazy" /></span> : <div class="ph" aria-hidden="true" />}
+														<div>
+															<span class="news-cat">{n.cat}</span>
+															<span class="news-title">{n.title}</span>
+															{n.date && <time class="news-date" datetime={n.iso}>{n.date}</time>}
+														</div>
+													</a>
+												))}
+											</div>
 										</div>
+									) : (
+										<p class="empty">ยังไม่มีข่าว</p>
+									)}
+								</div>
+							))
+						}
+					</section>
+				)}
+				{key === 'procurement' && (
+					procurement.length > 0 && (
+						<section class="section-soft" aria-labelledby="h-procurement">
+							<div class="wrap">
+								<div class="section-head">
+									<h2 id="h-procurement">ประกาศจัดซื้อจัดจ้าง</h2>
+									<a class="more" href={catHref('procurement')}>ดูประกาศทั้งหมด</a>
+								</div>
+								<ul class="doc-list">
+									{procurement.map((n) => (
+										<li>
+											{n.date && <time class="news-date" datetime={n.iso}>{n.date}</time>}
+											<a href={n.href}>{n.title}</a>
+											{n.fileType && (
+												<span class="ftype">
+													<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+														<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+														<path d="M14 2v6h6" />
+													</svg>
+													{n.fileType}
+												</span>
+											)}
+										</li>
+									))}
+								</ul>
+							</div>
+						</section>
+					)
+				)}
+				{key === 'services' && (
+					tiles.length > 0 && (
+						<section class="wrap section" aria-labelledby="h-services">
+							<h2 id="h-services">บริการสำหรับผู้ป่วย</h2>
+							<div class="tiles">
+								{tiles.map((t) => (
+									<a class="tile" href={t.href} {...(t.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
+										<span class="tile-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true" set:html={t.icon} /></span>
+										<span>{t.label}</span>
 									</a>
 								))}
 							</div>
+						</section>
+					)
+				)}
+				{key === 'contact' && (
+					<section class="wrap section" id="contact" aria-labelledby="h-contact">
+						<div class="contact">
+							<div class="contact-info">
+								<h2 id="h-contact">ติดต่อโรงพยาบาล</h2>
+								<dl>
+								{
+									settings.opening_hours && (
+										<div>
+											<dt>เวลาทำการ</dt>
+											<dd>{plain(settings.opening_hours)}</dd>
+										</div>
+									)
+								}
+								{
+									settings.phone && (
+										<div>
+											<dt>โทรศัพท์</dt>
+											<dd>{phoneHref ? <a href={phoneHref}>{settings.phone}</a> : settings.phone}</dd>
+										</div>
+									)
+								}
+								<div>
+									<dt>เหตุฉุกเฉิน</dt>
+									<dd><a href={telHref(settings.emergency_phone || '1669')}>{settings.emergency_phone || '1669'}</a> (ตลอด 24 ชั่วโมง)</dd>
+								</div>
+								{
+									settings.address && (
+										<div>
+											<dt>ที่อยู่</dt>
+											<dd>{plain(settings.address)}</dd>
+										</div>
+									)
+								}
+								{
+									mapUrl && !mapEmbed && (
+										<div>
+											<a class="btn" href={mapUrl} target="_blank" rel="noopener noreferrer">
+												เปิดแผนที่ Google Maps
+											</a>
+										</div>
+									)
+								}
+								</dl>
+							</div>
+							{
+								mapEmbed && (
+									<div class="contact-map">
+										<iframe src={mapEmbed} title={`แผนที่${name}`} loading="lazy" referrerpolicy="no-referrer-when-downgrade" />
+									</div>
+								)
+							}
 						</div>
-					) : (
-						<p class="empty">ยังไม่มีข่าว</p>
-					)}
-				</div>
-			))
-		}
-	</section>
-
-	{
-		procurement.length > 0 && (
-			<section class="section-soft" aria-labelledby="h-procurement">
-				<div class="wrap">
-					<div class="section-head">
-						<h2 id="h-procurement">ประกาศจัดซื้อจัดจ้าง</h2>
-						<a class="more" href={catHref('procurement')}>ดูประกาศทั้งหมด</a>
-					</div>
-					<ul class="doc-list">
-						{procurement.map((n) => (
-							<li>
-								{n.date && <time class="news-date" datetime={n.iso}>{n.date}</time>}
-								<a href={n.href}>{n.title}</a>
-								{n.fileType && (
-									<span class="ftype">
-										<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-											<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-											<path d="M14 2v6h6" />
-										</svg>
-										{n.fileType}
-									</span>
-								)}
-							</li>
-						))}
-					</ul>
-				</div>
-			</section>
-		)
+					</section>
+				)}
+			</Fragment>
+		))
 	}
-
-	{
-		tiles.length > 0 && (
-			<section class="wrap section" aria-labelledby="h-services">
-				<h2 id="h-services">บริการสำหรับผู้ป่วย</h2>
-				<div class="tiles">
-					{tiles.map((t) => (
-						<a class="tile" href={t.href} {...(t.external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
-							<span class="tile-icon"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true" set:html={t.icon} /></span>
-							<span>{t.label}</span>
-						</a>
-					))}
-				</div>
-			</section>
-		)
-	}
-
-	<section class="wrap section" id="contact" aria-labelledby="h-contact">
-		<div class="contact">
-			<div class="contact-info">
-				<h2 id="h-contact">ติดต่อโรงพยาบาล</h2>
-				<dl>
-				{
-					settings.opening_hours && (
-						<div>
-							<dt>เวลาทำการ</dt>
-							<dd>{plain(settings.opening_hours)}</dd>
-						</div>
-					)
-				}
-				{
-					settings.phone && (
-						<div>
-							<dt>โทรศัพท์</dt>
-							<dd>{phoneHref ? <a href={phoneHref}>{settings.phone}</a> : settings.phone}</dd>
-						</div>
-					)
-				}
-				<div>
-					<dt>เหตุฉุกเฉิน</dt>
-					<dd><a href={telHref(settings.emergency_phone || '1669')}>{settings.emergency_phone || '1669'}</a> (ตลอด 24 ชั่วโมง)</dd>
-				</div>
-				{
-					settings.address && (
-						<div>
-							<dt>ที่อยู่</dt>
-							<dd>{plain(settings.address)}</dd>
-						</div>
-					)
-				}
-				{
-					mapUrl && !mapEmbed && (
-						<div>
-							<a class="btn" href={mapUrl} target="_blank" rel="noopener noreferrer">
-								เปิดแผนที่ Google Maps
-							</a>
-						</div>
-					)
-				}
-				</dl>
-			</div>
-			{
-				mapEmbed && (
-					<div class="contact-map">
-						<iframe src={mapEmbed} title={`แผนที่${name}`} loading="lazy" referrerpolicy="no-referrer-when-downgrade" />
-					</div>
-				)
-			}
-		</div>
-	</section>
 </Base>
 
 <script>
