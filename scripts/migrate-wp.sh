@@ -53,8 +53,8 @@ EOF
 fi
 
 if [[ " $* " != *" --dry-run "* ]]; then
-	read -r -p "อีเมล admin [admin01@$WP_HOST]: " ADMIN_EMAIL
-	ADMIN_EMAIL=${ADMIN_EMAIL:-admin01@$WP_HOST}
+	read -r -p "อีเมล admin [adminwaritchaphum@moph.go.th]: " ADMIN_EMAIL
+	ADMIN_EMAIL=${ADMIN_EMAIL:-adminwaritchaphum@moph.go.th}
 	read -r -s -p "รหัสผ่าน: " ADMIN_PASSWORD; echo
 	read -r -p "รหัส 2FA 6 หลัก (ใส่ตอนรหัสใหม่เพิ่งขึ้น): " ADMIN_OTP
 	export ADMIN_EMAIL ADMIN_PASSWORD ADMIN_OTP

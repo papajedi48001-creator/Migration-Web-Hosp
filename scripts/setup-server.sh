@@ -176,8 +176,8 @@ if [[ -z ${DIRECTUS_READ_TOKEN:-} ]]; then
 elif [[ ${1:-} == cms || -n $CLI_ADMIN_OTP ]]; then
 	# อัปเดตโครงสร้างหลังบ้านหลัง git pull: ถามบัญชี admin ตอนรัน ไม่ใช้ค่าใน .env และไม่เก็บไว้ที่ไหน
 	ADMIN_EMAIL=$CLI_ADMIN_EMAIL ADMIN_PASSWORD=$CLI_ADMIN_PASSWORD ADMIN_OTP=$CLI_ADMIN_OTP
-	[[ -n $ADMIN_EMAIL ]] || read -r -p "อีเมล admin [admin01@waritch-hosp.moph.go.th]: " ADMIN_EMAIL
-	ADMIN_EMAIL=${ADMIN_EMAIL:-admin01@waritch-hosp.moph.go.th}
+	[[ -n $ADMIN_EMAIL ]] || read -r -p "อีเมล admin [adminwaritchaphum@moph.go.th]: " ADMIN_EMAIL
+	ADMIN_EMAIL=${ADMIN_EMAIL:-adminwaritchaphum@moph.go.th}
 	[[ -n $ADMIN_PASSWORD ]] || { read -r -s -p "รหัสผ่าน: " ADMIN_PASSWORD; echo; }
 	[[ -n $ADMIN_OTP ]] || read -r -p "รหัส 2FA 6 หลัก (ใส่ตอนรหัสใหม่เพิ่งขึ้น): " ADMIN_OTP
 	export ADMIN_EMAIL ADMIN_PASSWORD ADMIN_OTP
