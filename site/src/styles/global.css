@@ -1573,11 +1573,3 @@ html {
 		display: none !important;
 	}
 }
-
-/* บริการสำหรับผู้ป่วยอยู่ล่างสุดของหน้าแรก (ต่อจากติดต่อ) */
-#contact {
-	padding-bottom: 24px;
-}
-.section-last {
-	padding-bottom: 64px;
-}
