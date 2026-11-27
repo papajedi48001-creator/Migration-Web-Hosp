@@ -149,5 +149,20 @@ const footerLinks = nav.filter((n) => n.href && n.href !== href(''));
 			</div>
 			<div class="wrap footer-copy">© {year} {name}</div>
 		</footer>
+		<script>
+			// หัวเว็บย่อเมื่อเลื่อนลง (เผื่อระยะไว้ ไม่ให้สลับไปมาตรงรอยต่อ)
+			const header = document.querySelector<HTMLElement>('.site-header');
+			if (header) {
+				let small = false;
+				const update = () => {
+					const y = window.scrollY;
+					if (!small && y > 80) small = true;
+					else if (small && y < 20) small = false;
+					header.classList.toggle('is-scrolled', small);
+				};
+				window.addEventListener('scroll', update, { passive: true });
+				update();
+			}
+		</script>
 	</body>
 </html>
